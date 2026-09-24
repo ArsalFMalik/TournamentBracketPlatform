@@ -5,11 +5,118 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  tournamentsCreated Tournament[]  @relation("TournamentCreator")
+  participants       Participant[]
+
+  @@map("users")
+}
+
+model GameType {
+  id            String  @id @default(uuid())
+  name          String  @unique
+  scoringFormat String  // "single_score" | "binary_result" — describes ONE set's outcome
+  config        Json?   // optional per-set config, e.g. { "pointsPerSet": 21 } for Badminton
+
+  tournaments Tournament[]
+
+  @@map("game_types")
+}
+
+model Tournament {
+  id              String   @id @default(uuid())
+  name            String
+  format          String   @default("single_elimination")
+  status          String   @default("registration")
+  maxParticipants Int
+  createdAt       DateTime @default(now())
+
+  scoringConfig   Json     @default("{\"setsToWin\": 1}")
+
+  gameTypeId String
+  gameType   GameType @relation(fields: [gameTypeId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("TournamentCreator", fields: [createdById], references: [id])
+
+  participants Participant[]
+  matches      Match[]
+  teams        Team[]
+
+  @@map("tournaments")
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  members Participant[]
+
+  @@map("teams")
+}
+
+model Participant {
+  id           String   @id @default(uuid())
+  seedNumber   Int?
+  registeredAt DateTime @default(now())
+  displayName  String?  // for guest entries without a user account
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  matchesAsP1 Match[] @relation("Participant1")
+  matchesAsP2 Match[] @relation("Participant2")
+  matchesWon  Match[] @relation("Winner")
+
+  @@map("participants")
+}
+
+model Match {
+  id          String   @id @default(uuid())
+  roundNumber Int
+  matchNumber Int
+  status      String   @default("pending") // pending | in_progress | completed
+  scoreData   Json?    // shape depends on GameType.scoringFormat
+
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  participant1Id String?
+  participant1    Participant? @relation("Participant1", fields: [participant1Id], references: [id])
+
+  participant2Id String?
+  participant2    Participant? @relation("Participant2", fields: [participant2Id], references: [id])
+
+  winnerId String?
+  winner   Participant? @relation("Winner", fields: [winnerId], references: [id])
+
+  nextMatchId     String?
+  nextMatch       Match?  @relation("MatchProgression", fields: [nextMatchId], references: [id])
+  previousMatches Match[] @relation("MatchProgression")
+
+  @@map("matches")
 }
