@@ -29,8 +29,8 @@ model User {
 model GameType {
   id            String  @id @default(uuid())
   name          String  @unique
-  scoringFormat String  // "single_score" | "binary_result" — describes ONE set's outcome
-  config        Json?   // optional per-set config, e.g. { "pointsPerSet": 21 } for Badminton
+  scoringFormat String  // "single_score" | "binary_result" | "target_score" — describes ONE set's outcome
+  config        Json?   // optional per-set config
 
   tournaments Tournament[]
 
