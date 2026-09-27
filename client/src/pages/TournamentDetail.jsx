@@ -1,17 +1,39 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getTournament } from '../api/tournaments';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getTournament, joinTournament, addParticipant } from '../api/tournaments';
 
 export default function TournamentDetail() {
     const { id } = useParams();
+    const [guestName, setGuestName] = useState('');
+    const queryClient = useQueryClient();
+
     const { data, isLoading } = useQuery({
         queryKey: ['tournament', id],
         queryFn: () => getTournament(id),
     });
 
+    const joinMutation = useMutation({
+        mutationFn: () => joinTournament(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tournament', id] });
+        },
+    });
+
+    const addMutation = useMutation({
+        mutationFn: () => addParticipant(id, guestName),
+        onSuccess: () => {
+            setGuestName('');
+            queryClient.invalidateQueries({ queryKey: ['tournament', id] });
+        },
+    });
+
     if (isLoading) return <div className="p-8">Loading...</div>;
 
     const t = data.tournament;
+    const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+    const isCreator = currentUser?.id === t.createdBy.id;
+    const isFull = t.participants.length >= t.maxParticipants;
 
     return (
         <div className="max-w-2xl mx-auto mt-16 p-6">
@@ -19,6 +41,48 @@ export default function TournamentDetail() {
             <p className="text-sm text-gray-500 mb-4">
                 {t.gameType.name} • {t.status} • {t.participants.length}/{t.maxParticipants} participants
             </p>
+
+            {currentUser && !isFull && (
+                <button
+                    onClick={() => joinMutation.mutate()}
+                    className="bg-blue-600 text-white px-3 py-2 rounded text-sm mb-2"
+                    disabled={joinMutation.isPending}
+                >
+                    {joinMutation.isPending ? 'Joining...' : 'Join Tournament'}
+                </button>
+            )}
+            {joinMutation.isError && (
+                <p className="text-red-600 text-sm mb-2">
+                    {joinMutation.error?.response?.data?.error}
+                </p>
+            )}
+
+            {isCreator && !isFull && (
+                <form
+                    onSubmit={(e) => { e.preventDefault(); addMutation.mutate(); }}
+                    className="flex gap-2 mb-4 mt-2"
+                >
+                    <input
+                        className="border p-2 rounded text-sm flex-1"
+                        placeholder="Guest name"
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                    />
+                    <button
+                        type="submit"
+                        className="bg-gray-700 text-white px-3 py-2 rounded text-sm"
+                        disabled={addMutation.isPending}
+                    >
+                        Add Guest
+                    </button>
+                </form>
+            )}
+            {addMutation.isError && (
+                <p className="text-red-600 text-sm mb-2">
+                    {addMutation.error?.response?.data?.error}
+                </p>
+            )}
+
             <h2 className="font-semibold mt-4 mb-2">Participants</h2>
             {t.participants.length === 0 ? (
                 <p className="text-sm text-gray-500">No participants yet.</p>
