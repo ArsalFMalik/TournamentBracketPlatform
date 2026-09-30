@@ -80,6 +80,25 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+router.get('/:id/matches', async (req, res) => {
+    try {
+        const matches = await prisma.match.findMany({
+            where: { tournamentId: req.params.id },
+            include: {
+                participant1: { include: { user: { select: { username: true } } } },
+                participant2: { include: { user: { select: { username: true } } } },
+                winner: { include: { user: { select: { username: true } } } },
+            },
+            orderBy: [{ roundNumber: 'asc' }, { matchNumber: 'asc' }],
+        });
+        res.json({ matches });
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong fetching matches.' });
+    }
+});
+
 router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
     try {
         const tournament = await prisma.tournament.findUnique({
@@ -106,36 +125,37 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
         const template = buildBracket(shuffled.map((p) => p.id));
 
         const result = await prisma.$transaction(async (tx) => {
-            for (let i = 0; i < shuffled.length; i++) {
-                await tx.participant.update({
-                    where: { id: shuffled[i].id },
-                    data: { seedNumber: i + 1 },
-                });
-            }
+            await Promise.all(
+                shuffled.map((p, i) => tx.participant.update({ where: { id: p.id }, data: { seedNumber: i + 1 } }))
+            );
 
             const totalRounds = Math.max(...template.map((m) => m.roundNumber));
             const createdByKey = new Map();
 
             for (let round = totalRounds; round >= 1; round--) {
                 const matchesInRound = template.filter((m) => m.roundNumber === round);
-                for (const m of matchesInRound) {
-                    const nextRow = m.next ? createdByKey.get(`${m.next.roundNumber}-${m.next.matchNumber}`) : null;
 
-                    const row = await tx.match.create({
-                        data: {
-                            tournamentId: tournament.id,
-                            roundNumber: m.roundNumber,
-                            matchNumber: m.matchNumber,
-                            status: m.status,
-                            isBye: m.isBye,
-                            participant1Id: m.participant1,
-                            participant2Id: m.participant2,
-                            winnerId: m.winner,
-                            nextMatchId: nextRow ? nextRow.id : null,
-                        },
-                    });
-                    createdByKey.set(`${round}-${m.matchNumber}`, row);
-                }
+                const rows = await Promise.all(
+                    matchesInRound.map((m) => {
+                        const nextRow = m.next ? createdByKey.get(`${m.next.roundNumber}-${m.next.matchNumber}`) : null;
+
+                        return tx.match.create({
+                            data: {
+                                tournamentId: tournament.id,
+                                roundNumber: m.roundNumber,
+                                matchNumber: m.matchNumber,
+                                status: m.status,
+                                isBye: m.isBye,
+                                participant1Id: m.participant1,
+                                participant2Id: m.participant2,
+                                winnerId: m.winner,
+                                nextMatchId: nextRow ? nextRow.id : null,
+                            },
+                        });
+                    })
+                );
+
+                rows.forEach((row) => createdByKey.set(`${round}-${row.matchNumber}`, row));
             }
 
             await tx.tournament.update({
@@ -144,7 +164,7 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
             });
 
             return createdByKey;
-        });
+        }, { timeout: 15000 }); // some headroom, but the real fix is fewer round trips
 
         const matches = await prisma.match.findMany({
             where: { tournamentId: tournament.id },

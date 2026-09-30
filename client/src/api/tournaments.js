@@ -29,3 +29,18 @@ export async function addParticipant(tournamentId, displayName) {
     const res = await api.post(`/tournaments/${tournamentId}/participants`, { displayName });
     return res.data;
 }
+
+export async function generateBracket(tournamentId) {
+    const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
+    return res.data;
+}
+
+export async function resetBracket(tournamentId) {
+    const res = await api.post(`/tournaments/${tournamentId}/reset-bracket`);
+    return res.data;
+}
+
+export async function getMatches(tournamentId) {
+    const res = await api.get(`/tournaments/${tournamentId}/matches`);
+    return res.data;
+}
