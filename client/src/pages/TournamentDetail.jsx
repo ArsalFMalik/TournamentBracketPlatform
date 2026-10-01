@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTournament, joinTournament, addParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
+import Bracket from '../components/Bracket';
 
 export default function TournamentDetail() {
     const { id } = useParams();
@@ -152,20 +153,8 @@ export default function TournamentDetail() {
 
             {matchesData && (
                 <div className="mt-6">
-                    <h2 className="font-semibold mb-2">Matches</h2>
-                    {matchesData.matches.map((m) => (
-                        <div key={m.id} className="border p-2 rounded text-sm mb-1">
-                            Round {m.roundNumber}, Match {m.matchNumber}:{' '}
-                            {m.participant1?.user?.username || m.participant1?.displayName || 'TBD'}
-                            {' vs '}
-                            {m.participant2?.user?.username || m.participant2?.displayName || (m.isBye ? 'BYE' : 'TBD')}
-                            {m.status === 'completed' && (
-                                <span className="text-green-600">
-                                    {' '}— Winner: {m.winner?.user?.username || m.winner?.displayName}
-                                </span>
-                            )}
-                        </div>
-                    ))}
+                    <h2 className="font-semibold mb-2">Bracket</h2>
+                    <Bracket matches={matchesData.matches}/>
                 </div>
             )}
         </div>
