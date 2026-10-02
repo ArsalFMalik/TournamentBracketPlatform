@@ -11,17 +11,19 @@ function roundLabel(roundNumber, totalRounds) {
     return `Round ${roundNumber}`;
 }
 
-function MatchCard({ match }) {
+function MatchCard({ match, isLastRound }) {
     const p1Winner = match.status === 'completed' && match.winnerId === match.participant1Id;
     const p2Winner = match.status === 'completed' && match.winnerId === match.participant2Id;
 
     return (
-        <div className="border rounded-md text-sm w-48 bg-white">
-            <div className={`p-2 border-b ${p1Winner ? 'font-semibold bg-green-50' : ''}`}>
-                {participantLabel(match.participant1, false)}
-            </div>
-            <div className={`p-2 ${p2Winner ? 'font-semibold bg-green-50' : ''}`}>
-                {participantLabel(match.participant2, match.isBye)}
+        <div className={`relative ${!isLastRound ? 'after:content-[""] after:absolute after:top-1/2 after:-right-8 after:w-8 after:border-t after:border-gray-300' : ''}`}>
+            <div className="border rounded-md text-sm w-52 bg-white shadow-sm">
+                <div className={`px-3 py-2 border-b ${p1Winner ? 'font-semibold bg-green-50' : ''}`}>
+                    {participantLabel(match.participant1, false)}
+                </div>
+                <div className={`px-3 py-2 ${p2Winner ? 'font-semibold bg-green-50' : ''}`}>
+                    {participantLabel(match.participant2, match.isBye)}
+                </div>
             </div>
         </div>
     );
@@ -47,7 +49,7 @@ export default function Bracket({ matches }) {
                         <div
                             className="flex flex-col justify-around flex-1 gap-4"
                         >
-                            {roundMatches.map((m) => (<MatchCard key={m.id} match={m}/>))}
+                            {roundMatches.map((m) => (<MatchCard key={m.id} match={m} isLastRound={roundNumber === totalRounds}/>))}
                         </div>
                     </div>
                 ))}

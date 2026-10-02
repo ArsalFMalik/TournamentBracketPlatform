@@ -4,12 +4,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTournament, joinTournament, addParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
 
+function statusBadgeClass(status) {
+    if (status === 'registration') return 'bg-gray-100 text-gray-700';
+    if (status === 'in_progress') return 'bg-green-100 text-green-700';
+    if (status === 'completed') return 'bg-blue-100 text-blue-700';
+    return 'bg-gray-100 text-gray-700';
+}
+
 export default function TournamentDetail() {
     const { id } = useParams();
     const [guestName, setGuestName] = useState('');
     const queryClient = useQueryClient();
 
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError } = useQuery({
         queryKey: ['tournament', id],
         queryFn: () => getTournament(id),
     });
@@ -54,6 +61,7 @@ export default function TournamentDetail() {
     });
 
     if (isLoading) return <div className="p-8">Loading...</div>;
+    if (isError) return <div className="p-8 text-red-600">Failed to load this tournament.</div>;
     if (!t) return <div className="p-8">Tournament not found.</div>;
 
     const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
@@ -63,11 +71,15 @@ export default function TournamentDetail() {
     return (
         <div className="max-w-2xl mx-auto mt-16 p-6">
             <h1 className="text-xl font-bold">{t.name}</h1>
-            <p className="text-sm text-gray-500 mb-4">
-                {t.gameType.name} • {t.status} • {t.participants.length}/{t.maxParticipants} participants
+            <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
+                {t.gameType.name}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeClass(t.status)}`}>
+                    {t.status.replace('_', ' ')}
+                </span>
+                {t.participants.length}/{t.maxParticipants} participants
             </p>
 
-            {currentUser && !isFull && (
+            {currentUser && !isFull && t.status === 'registration' && (
                 <button
                     onClick={() => joinMutation.mutate()}
                     className="bg-blue-600 text-white px-3 py-2 rounded text-sm mb-2"
@@ -82,7 +94,7 @@ export default function TournamentDetail() {
                 </p>
             )}
 
-            {isCreator && !isFull && (
+            {isCreator && !isFull && t.status === 'registration' && (
                 <form
                     onSubmit={(e) => { e.preventDefault(); addMutation.mutate(); }}
                     className="flex gap-2 mb-4 mt-2"
@@ -151,10 +163,14 @@ export default function TournamentDetail() {
                 </p>
             )}
 
-            {matchesData && (
+            {t.status !== 'registration' && (
                 <div className="mt-6">
                     <h2 className="font-semibold mb-2">Bracket</h2>
-                    <Bracket matches={matchesData.matches}/>
+                    {!matchesData ? (
+                        <p className="text-sm text-gray-500">Loading bracket...</p>
+                    ) : (
+                        <Bracket matches={matchesData.matches}/>
+                    )}
                 </div>
             )}
         </div>

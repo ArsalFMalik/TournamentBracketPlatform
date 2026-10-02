@@ -125,6 +125,14 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
         const template = buildBracket(shuffled.map((p) => p.id));
 
         const result = await prisma.$transaction(async (tx) => {
+            const claim = await tx.tournament.updateMany({
+                where: { id: tournament.id, status: 'registration' },
+                data: { status: 'in_progress' },
+            });
+            if (claim.count === 0) {
+                throw new Error('ALREADY_GENERATED');
+            }
+
             await Promise.all(
                 shuffled.map((p, i) => tx.participant.update({ where: { id: p.id }, data: { seedNumber: i + 1 } }))
             );
@@ -134,11 +142,9 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
 
             for (let round = totalRounds; round >= 1; round--) {
                 const matchesInRound = template.filter((m) => m.roundNumber === round);
-
                 const rows = await Promise.all(
                     matchesInRound.map((m) => {
                         const nextRow = m.next ? createdByKey.get(`${m.next.roundNumber}-${m.next.matchNumber}`) : null;
-
                         return tx.match.create({
                             data: {
                                 tournamentId: tournament.id,
@@ -179,6 +185,9 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
         res.status(201).json({ matches });
     }
     catch (err) {
+        if (err.message === 'ALREADY_GENERATED') {
+            return res.status(400).json({ error: 'This tournament\'s bracket has already been generated.' });
+        }
         console.error(err);
         res.status(500).json({ error: 'Something went wrong generating the bracket.' });
     }
