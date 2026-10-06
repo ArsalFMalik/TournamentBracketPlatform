@@ -29,8 +29,7 @@ router.post('/register', async (req, res) => {
         });
 
         res.status(201).json({ user });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong during registration.' });
     }
@@ -64,8 +63,7 @@ router.post('/login', async (req, res) => {
             token,
             user: { id: user.id, username: user.username, email: user.email },
             });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong during login.' });
     }

@@ -32,8 +32,7 @@ router.post('/tournaments/:tournamentId/join', requireAuth, async (req, res) => 
         });
 
         res.status(201).json({ participant });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong joining the tournament.' });
     }
@@ -78,8 +77,7 @@ router.post('/tournaments/:tournamentId/participants', requireAuth, async (req, 
         });
 
         res.status(201).json({ participant });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong adding the participant.' });
     }

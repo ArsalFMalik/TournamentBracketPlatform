@@ -31,8 +31,7 @@ router.post('/', requireAuth, async (req, res) => {
         });
 
         res.status(201).json({ tournament });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong creating the tournament.' });
     }
@@ -49,8 +48,7 @@ router.get('/', async (req, res) => {
             orderBy: { createdAt: 'desc' },
         });
         res.json({ tournaments });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong fetching tournaments.' });
     }
@@ -73,8 +71,7 @@ router.get('/:id', async (req, res) => {
         }
 
         res.json({ tournament });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong fetching the tournament.' });
     }
@@ -92,8 +89,7 @@ router.get('/:id/matches', async (req, res) => {
             orderBy: [{ roundNumber: 'asc' }, { matchNumber: 'asc' }],
         });
         res.json({ matches });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong fetching matches.' });
     }
@@ -183,8 +179,7 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
         });
 
         res.status(201).json({ matches });
-    }
-    catch (err) {
+    } catch (err) {
         if (err.message === 'ALREADY_GENERATED') {
             return res.status(400).json({ error: 'This tournament\'s bracket has already been generated.' });
         }
@@ -217,8 +212,7 @@ router.post('/:id/reset-bracket', requireAuth, async (req, res) => {
         ]);
 
         res.json({ message: 'Bracket reset.' });
-    }
-    catch (err) {
+    } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong resetting the bracket.' });
     }
