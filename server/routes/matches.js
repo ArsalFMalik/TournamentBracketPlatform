@@ -35,7 +35,11 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
         const { scoringFormat, config } = match.tournament.gameType;
         const scoringConfig = match.tournament.scoringConfig || {};
         const setsToWin = scoringConfig.setsToWin ?? 1;
-        const effectiveConfig = { ...config, ...scoringConfig };
+        const effectiveConfig = {
+            target: config?.defaultTarget,
+            winBy: config?.defaultWinBy,
+            ...scoringConfig,
+        };
 
         for (const setData of sets) {
             const result = determineSetWinner(scoringFormat, effectiveConfig, setData);

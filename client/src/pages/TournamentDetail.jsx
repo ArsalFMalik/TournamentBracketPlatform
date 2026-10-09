@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTournament, joinTournament, addParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
+import ScoreEntryForm from '../components/ScoreEntryForm';
 
 function statusBadgeClass(status) {
     if (status === 'registration') return 'bg-gray-100 text-gray-700';
@@ -14,6 +15,7 @@ function statusBadgeClass(status) {
 export default function TournamentDetail() {
     const { id } = useParams();
     const [guestName, setGuestName] = useState('');
+    const [scoringMatchId, setScoringMatchId] = useState(null);
     const queryClient = useQueryClient();
 
     const { data, isLoading, isError } = useQuery({
@@ -171,6 +173,38 @@ export default function TournamentDetail() {
                     ) : (
                         <Bracket matches={matchesData.matches}/>
                     )}
+                </div>
+            )}
+
+            {isCreator && t.status === 'in_progress' && matchesData && (
+                <div className="mt-6">
+                    <h2 className="font-semibold mb-2">Enter Scores</h2>
+                    {(() => {
+                        const ready = matchesData.matches.filter(
+                            (m) => !m.isBye && m.participant1Id && m.participant2Id && m.status !== 'completed'
+                        );
+                        if (ready.length === 0) return <p className="text-sm text-gray-500">No matches ready to score.</p>;
+                        return ready.map((m) => (
+                            <div key={m.id} className="border rounded p-2 mb-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span>
+                                        Round {m.roundNumber}, Match {m.matchNumber}:{' '}
+                                        {m.participant1?.user?.username || m.participant1?.displayName} vs{' '}
+                                        {m.participant2?.user?.username || m.participant2?.displayName}
+                                    </span>
+                                    <button
+                                        className="text-xs border px-2 py-1 rounded"
+                                        onClick={() => setScoringMatchId(scoringMatchId === m.id ? null : m.id)}
+                                    >
+                                        {scoringMatchId === m.id ? 'Close' : 'Enter score'}
+                                    </button>
+                                </div>
+                                {scoringMatchId === m.id && (
+                                    <ScoreEntryForm match={m} tournament={t} onClose={() => setScoringMatchId(null)} />
+                                )}
+                            </div>
+                        ));
+                    })()}
                 </div>
             )}
         </div>

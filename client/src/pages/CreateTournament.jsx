@@ -7,6 +7,9 @@ export default function CreateTournament() {
     const [name, setName] = useState('');
     const [gameTypeId, setGameTypeId] = useState('');
     const [maxParticipants, setMaxParticipants] = useState(8);
+    const [setsToWin, setSetsToWin] = useState(1);
+    const [target, setTarget] = useState('');
+    const [winBy, setWinBy] = useState('');
     const navigate = useNavigate();
 
     const { data: gameTypesData, isLoading } = useQuery({
@@ -15,15 +18,34 @@ export default function CreateTournament() {
     });
 
     const mutation = useMutation({
-        mutationFn: createTournament,
-        onSuccess: (data) => {
-            navigate(`/tournaments/${data.tournament.id}`);
-        },
+        mutationFn: createTournament, 
+        onSuccess: (data) => { navigate(`/tournaments/${data.tournament.id}`); }
     });
+
+    const selectedGame = gameTypesData?.gameTypes.find((g) => g.id === gameTypeId);
+    const isTargetScore = selectedGame?.scoringFormat === 'target_score';
+
+    function handleGameChange(e) {
+        const id = e.target.value;
+        setGameTypeId(id);
+        const game = gameTypesData?.gameTypes.find((g) => g.id === id);
+        setTarget(game?.config?.defaultTarget ?? '');
+        setWinBy(game?.config?.defaultWinBy ?? '');
+    }
 
     function handleSubmit(e) {
         e.preventDefault();
-        mutation.mutate({ name, gameTypeId, maxParticipants: Number(maxParticipants) });
+        const scoringConfig = { setsToWin: Number(setsToWin) };
+        if (isTargetScore) {
+            scoringConfig.target = Number(target);
+            scoringConfig.winBy = Number(winBy);
+        }
+        mutation.mutate({
+            name,
+            gameTypeId,
+            maxParticipants: Number(maxParticipants),
+            scoringConfig,
+        });
     }
 
     if (isLoading) return <div className="p-8">Loading game types...</div>;
@@ -41,7 +63,7 @@ export default function CreateTournament() {
                 <select
                     className="border p-2 rounded"
                     value={gameTypeId}
-                    onChange={(e) => setGameTypeId(e.target.value)}
+                    onChange={handleGameChange}
                 >
                     <option value="">Select a game</option>
                     {gameTypesData?.gameTypes.map((gt) => (
@@ -56,10 +78,47 @@ export default function CreateTournament() {
                     value={maxParticipants}
                     onChange={(e) => setMaxParticipants(e.target.value)}
                 />
+
+                <label className="text-sm text-gray-600">
+                    Sets to win (1 = a single game decides the match)
+                    <input
+                        className="border p-2 rounded w-full mt-1"
+                        type="number"
+                        min="1"
+                        value={setsToWin}
+                        onChange={(e) => setSetsToWin(e.target.value)}
+                    />
+                </label>
+
+                {isTargetScore && (
+                    <div className="flex gap-2">
+                        <label className="text-sm text-gray-600 flex-1">
+                            Target score
+                            <input
+                                className="border p-2 rounded w-full mt-1"
+                                type="number"
+                                min="1"
+                                value={target}
+                                onChange={(e) => setTarget(e.target.value)}
+                            />
+                        </label>
+                        <label className="text-sm text-gray-600 flex-1">
+                            Win by
+                            <input
+                                className="border p-2 rounded w-full mt-1"
+                                type="number"
+                                min="1"
+                                value={winBy}
+                                onChange={(e) => setWinBy(e.target.value)}
+                            />
+                        </label>
+                    </div>
+                )}
+
                 <button
                     type="submit"
                     className="bg-blue-600 text-white p-2 rounded"
-                    disabled={mutation.isPending}
+                    disabled={mutation.isPending || !gameTypeId}
                 >
                     {mutation.isPending ? 'Creating...' : 'Create Tournament'}
                 </button>
