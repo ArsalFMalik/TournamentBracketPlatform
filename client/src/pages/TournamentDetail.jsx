@@ -133,6 +133,17 @@ export default function TournamentDetail() {
                 </ul>
             )}
 
+            {t.status === 'completed' && matchesData && (() => {
+                const final = matchesData.matches.reduce((a, b) => (b.roundNumber > a.roundNumber ? b : a));
+                const champion = final.winner?.user?.username || final.winner?.displayName;
+                return (
+                    <div className="mt-6 p-4 border rounded-lg bg-yellow-50 text-center">
+                        <div className="text-xs uppercase tracking-wide text-yellow-700">Champion</div>
+                        <div className="text-xl font-bold">{champion}</div>
+                    </div>
+                );
+            })()}
+
             {isCreator && t.status === 'registration' && t.participants.length >= 2 && (
                 <button
                     onClick={() => generateMutation.mutate()}

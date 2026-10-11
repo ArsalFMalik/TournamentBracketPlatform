@@ -103,7 +103,13 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Frontend: column-based bracket visualization with round labels (Quarterfinals/Semifinals/Final, counted from the final backward), winner highlighting, and horizontal scroll for large brackets
 
 ### Module 3 — Score Entry and Auto-Advancement
-Not started.
+- Scoring engine (`determineSetWinner`, `determineMatchWinner`) with one branch per scoring format and full unit test coverage, including drawn sets and win-by-margin handling
+- Every match is scored as a list of sets, with `setsToWin` configurable per tournament; a drawn set counts for neither side, so a tied match simply stays undecided until the creator adds another set
+- `POST /api/matches/:id/submit-score` (creator only): validates the sets against the tournament's scoring format, decides the winner, and advances them into the next match using the same odd/even slot rule as bracket generation. Completing the final marks the tournament completed
+- Guards: byes, matches with an unfilled slot, and completed matches cannot be scored; scores must be non-negative whole numbers; no sets may follow the one that decided the match
+- Completion is claimed atomically inside a transaction, so concurrent duplicate submissions can't advance a winner twice
+- Frontend: score-entry form that adapts to the scoring format (number inputs, or a win/loss/draw selector), opened from "Enter score" buttons on bracket cards; cards show per-set scores and an "In progress" state for partly-played matches; a champion banner appears once the tournament is completed
+- Tournament creation now collects `setsToWin` and, for target-score games, `target` and `winBy` (pre-filled from the game type's defaults)
 
 ### Module 4 — Profiles, History, and Admin Tools
 Not started.
@@ -115,3 +121,4 @@ Not started.
 - Single-elimination only for committed scope; round-robin and double-elimination are stretch goals
 - Guest `displayName`s are checked against existing usernames at add-time, but not retroactively enforced if a user later registers with a name matching an existing guest entry — treated as an acceptable, documented edge case rather than a bug
 - Bye wins are not counted toward a player's win/loss record (planned for Module 4's profile stats)
+- Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`

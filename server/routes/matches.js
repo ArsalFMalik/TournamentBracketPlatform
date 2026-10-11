@@ -41,38 +41,50 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
             ...scoringConfig,
         };
 
+        if (scoringFormat !== 'binary_result') {
+            const valid = sets.every(
+                (s) => Number.isInteger(s.p1) && Number.isInteger(s.p2) && s.p1 >= 0 && s.p2 >= 0
+            );
+            if (!valid) {
+                return res.status(400).json({ error: 'Scores must be non-negative whole numbers.' });
+            }
+        }
+
         for (const setData of sets) {
-            const result = determineSetWinner(scoringFormat, effectiveConfig, setData);
-            if (result === null) {
+            if (determineSetWinner(scoringFormat, effectiveConfig, setData) === null) {
                 return res.status(400).json({ error: 'One or more sets are incomplete or invalid for this scoring format.' });
+            }
+        }
+
+        for (let i = 1; i < sets.length; i++) {
+            if (determineMatchWinner(scoringFormat, effectiveConfig, sets.slice(0, i), setsToWin)) {
+                return res.status(400).json({ error: 'The match was already decided before the last set entered.' });
             }
         }
 
         const matchWinner = determineMatchWinner(scoringFormat, effectiveConfig, sets, setsToWin);
 
-        const updateData = { scoreData: { sets }, };
-
+        const updateData = { scoreData: { sets } };
         if (matchWinner) {
-            const winnerParticipantId = matchWinner === 'p1' ? match.participant1Id : match.participant2Id;
             updateData.status = 'completed';
-            updateData.winnerId = winnerParticipantId;
+            updateData.winnerId = matchWinner === 'p1' ? match.participant1Id : match.participant2Id;
         } else {
             updateData.status = 'in_progress';
         }
 
-        const result = await prisma.$transaction(async (tx) => {
-            const updatedMatch = await tx.match.update({
-                where: { id: match.id },
+        await prisma.$transaction(async (tx) => {
+            const claim = await tx.match.updateMany({
+                where: { id: match.id, status: { not: 'completed' } },
                 data: updateData,
             });
+            if (claim.count === 0) throw new Error('ALREADY_COMPLETED');
 
             if (matchWinner) {
                 if (match.nextMatchId) {
-                    const nextMatch = await tx.match.findUnique({ where: { id: match.nextMatchId } });
-                    const fillField = nextMatch.participant1Id === null ? 'participant1Id' : 'participant2Id';
+                    const slotField = match.matchNumber % 2 === 1 ? 'participant1Id' : 'participant2Id';
                     await tx.match.update({
                         where: { id: match.nextMatchId },
-                        data: { [fillField]: updateData.winnerId },
+                        data: { [slotField]: updateData.winnerId },
                     });
                 } else {
                     await tx.tournament.update({
@@ -81,8 +93,6 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
                     });
                 }
             }
-
-            return updatedMatch;
         });
 
         const fullMatch = await prisma.match.findUnique({
@@ -96,6 +106,9 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
 
         res.json({ match: fullMatch });
     } catch (err) {
+        if (err.message === 'ALREADY_COMPLETED') {
+            return res.status(400).json({ error: 'This match has already been completed.' });
+        }
         console.error(err);
         res.status(500).json({ error: 'Something went wrong submitting the score.' });
     }
