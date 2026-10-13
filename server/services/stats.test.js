@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { computeRecord } = require('./stats');
+const { computeRecord, deriveTournamentResult } = require('./stats');
 
 const match = (overrides) => ({
     participant1Id: 'a',
@@ -11,6 +11,15 @@ const match = (overrides) => ({
     isForfeit: false,
     ...overrides,
 });
+const bracket = (overrides = []) => {
+    const base = [
+        { roundNumber: 1, participant1Id: 'a', participant2Id: 'b', winnerId: null, status: 'pending', isBye: false },
+        { roundNumber: 1, participant1Id: 'c', participant2Id: 'd', winnerId: null, status: 'pending', isBye: false },
+        { roundNumber: 2, participant1Id: null, participant2Id: null, winnerId: null, status: 'pending', isBye: false },
+    ];
+    return base.map((m, i) => ({ ...m, ...(overrides[i] || {}) }));
+};
+const player = (id, disqualified = false) => ({ id, disqualified });
 
 test('counts wins and losses from completed matches', () => {
     const matches = [
@@ -68,4 +77,46 @@ test('empty input gives a zero record', () => {
     assert.deepStrictEqual(computeRecord([], ['a']), {
         wins: 0, losses: 0, played: 0, forfeitWins: 0, forfeitLosses: 0,
     });
+});
+
+test('result: registration while no bracket exists', () => {
+    assert.deepStrictEqual(deriveTournamentResult(player('a'), 'registration', []), {
+        result: 'registration', totalRounds: 0,
+    });
+});
+
+test('result: in progress while the player is still alive', () => {
+    const matches = bracket([{ status: 'completed', winnerId: 'a' }]);
+    assert.strictEqual(deriveTournamentResult(player('a'), 'in_progress', matches).result, 'in_progress');
+});
+
+test('result: eliminated reports the round of the loss', () => {
+    const matches = bracket([{ status: 'completed', winnerId: 'a' }]);
+    assert.deepStrictEqual(deriveTournamentResult(player('b'), 'in_progress', matches), {
+        result: 'eliminated', eliminatedRound: 1, totalRounds: 2,
+    });
+});
+
+test('result: champion only once the tournament is completed', () => {
+    const matches = bracket([
+        { status: 'completed', winnerId: 'a' },
+        { status: 'completed', winnerId: 'c' },
+        { participant1Id: 'a', participant2Id: 'c', status: 'completed', winnerId: 'a' },
+    ]);
+    assert.strictEqual(deriveTournamentResult(player('a'), 'completed', matches).result, 'champion');
+    const runnerUp = deriveTournamentResult(player('c'), 'completed', matches);
+    assert.strictEqual(runnerUp.result, 'eliminated');
+    assert.strictEqual(runnerUp.eliminatedRound, 2);
+});
+
+test('result: disqualified takes precedence over elimination', () => {
+    const matches = bracket([{ status: 'completed', winnerId: 'a', isForfeit: true }]);
+    assert.strictEqual(deriveTournamentResult(player('b', true), 'in_progress', matches).result, 'disqualified');
+});
+
+test('result: a bye win is not treated as a loss', () => {
+    const matches = bracket([
+        { participant2Id: null, isBye: true, status: 'completed', winnerId: 'a' },
+    ]);
+    assert.strictEqual(deriveTournamentResult(player('a'), 'in_progress', matches).result, 'in_progress');
 });

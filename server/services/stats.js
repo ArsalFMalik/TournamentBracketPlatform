@@ -19,4 +19,34 @@ function computeRecord(matches, participantIds) {
     return record;
 }
 
-module.exports = { computeRecord };
+function deriveTournamentResult(participant, tournamentStatus, matches) {
+    const totalRounds = matches.length ? Math.max(...matches.map((m) => m.roundNumber)) : 0;
+
+    if (tournamentStatus === 'registration' || matches.length === 0) {
+        return { result: 'registration', totalRounds };
+    }
+    if (participant.disqualified) {
+        return { result: 'disqualified', totalRounds };
+    }
+
+    const lostMatch = matches.find(
+        (m) =>
+            m.status === 'completed' &&
+            !m.isBye &&
+            m.winnerId &&
+            m.winnerId !== participant.id &&
+            (m.participant1Id === participant.id || m.participant2Id === participant.id)
+    );
+    if (lostMatch) {
+        return { result: 'eliminated', eliminatedRound: lostMatch.roundNumber, totalRounds };
+    }
+
+    const final = matches.find((m) => m.roundNumber === totalRounds);
+    if (tournamentStatus === 'completed' && final?.winnerId === participant.id) {
+        return { result: 'champion', totalRounds };
+    }
+
+    return { result: 'in_progress', totalRounds };
+}
+
+module.exports = { computeRecord, deriveTournamentResult };
