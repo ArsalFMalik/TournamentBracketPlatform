@@ -83,4 +83,33 @@ router.post('/tournaments/:tournamentId/participants', requireAuth, async (req, 
     }
 });
 
+router.delete('/tournaments/:tournamentId/participants/:participantId', requireAuth, async (req, res) => {
+    try {
+        const { tournamentId, participantId } = req.params;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+        if (!tournament) return res.status(404).json({ error: 'Tournament not found.' });
+        if (tournament.status !== 'registration') {
+            return res.status(400).json({ error: 'Participants can only be removed during registration.' });
+        }
+
+        const participant = await prisma.participant.findUnique({ where: { id: participantId } });
+        if (!participant || participant.tournamentId !== tournamentId) {
+            return res.status(404).json({ error: 'Participant not found in this tournament.' });
+        }
+
+        const isCreator = tournament.createdById === req.user.userId;
+        const isSelf = participant.userId === req.user.userId;
+        if (!isCreator && !isSelf) {
+            return res.status(403).json({ error: 'You can only remove your own entry, unless you created the tournament.' });
+        }
+
+        await prisma.participant.delete({ where: { id: participantId } });
+        res.json({ message: 'Participant removed.' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong removing the participant.' });
+    }
+});
+
 module.exports = router;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTournament, joinTournament, addParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
+import { getTournament, joinTournament, addParticipant, removeParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
 
 function statusBadgeClass(status) {
@@ -58,6 +58,11 @@ export default function TournamentDetail() {
             queryClient.invalidateQueries({ queryKey: ['tournament', id] });
             queryClient.removeQueries({ queryKey: ['matches', id] });
         },
+    });
+
+    const removeMutation = useMutation({
+        mutationFn: (participantId) => removeParticipant(id, participantId),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tournament', id] }),
     });
 
     if (isLoading) return <div className="p-8">Loading...</div>;
@@ -125,12 +130,32 @@ export default function TournamentDetail() {
                 <p className="text-sm text-gray-500">No participants yet.</p>
             ) : (
                 <ul className="flex flex-col gap-1">
-                    {t.participants.map((p) => (
-                        <li key={p.id} className="border p-2 rounded text-sm">
-                            {p.user?.username || p.displayName || 'Guest'}
-                        </li>
-                    ))}
+                    {t.participants.map((p) => {
+                        const name = p.user?.username || p.displayName || 'Guest';
+                        const canRemove = t.status === 'registration' && (isCreator || (currentUser && p.userId === currentUser.id));
+                        return (
+                            <li key={p.id} className="border p-2 rounded text-sm flex justify-between items-center">
+                                {p.userId ? (
+                                    <Link to={`/users/${p.userId}`} className="hover:underline">{name}</Link>
+                                ) : (
+                                    <span>{name}</span>
+                                )}
+                                {canRemove && (
+                                    <button
+                                        onClick={() => removeMutation.mutate(p.id)}
+                                        className="text-xs text-red-600"
+                                        disabled={removeMutation.isPending}
+                                    >
+                                        {isCreator && p.userId !== currentUser?.id ? 'Remove' : 'Leave'}
+                                    </button>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
+            )}
+            {removeMutation.isError && (
+                <p className="text-red-600 text-sm mt-2">{removeMutation.error?.response?.data?.error}</p>
             )}
 
             {t.status === 'completed' && matchesData && (() => {

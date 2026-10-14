@@ -4,6 +4,7 @@ import Register from './pages/Register';
 import TournamentList from './pages/TournamentList';
 import CreateTournament from './pages/CreateTournament';
 import TournamentDetail from './pages/TournamentDetail';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/tournaments/new" element={<CreateTournament />} />
       <Route path="/tournaments/:id" element={<TournamentDetail />} />
+      <Route path="/users/:id" element={<Profile />} />
     </Routes>
   );
 }

@@ -1,17 +1,24 @@
 import { useState } from 'react';
 import ScoreEntryForm from './ScoreEntryForm';
+import { roundLabel } from '../utils/rounds';
+import { Link } from 'react-router-dom';
 
 function participantLabel(p, isByeSlot) {
     if (p) return p.user?.username || p.displayName || 'Unknown';
     return isByeSlot ? 'BYE' : 'TBD';
 }
 
-function roundLabel(roundNumber, totalRounds) {
-    const fromEnd = totalRounds - roundNumber;
-    if (fromEnd === 0) return 'Final';
-    if (fromEnd === 1) return 'Semifinals';
-    if (fromEnd === 2) return 'Quarterfinals';
-    return `Round ${roundNumber}`;
+function ParticipantName({ participant, isByeSlot }) {
+    if (!participant) return <span>{isByeSlot ? 'BYE' : 'TBD'}</span>;
+    const name = participant.user?.username || participant.displayName || 'Unknown';
+    if (participant.userId) {
+        return (
+            <Link to={`/users/${participant.userId}`} className="hover:underline">
+                {name}
+            </Link>
+        );
+    }
+    return <span>{name}</span>;
 }
 
 function sideScores(match, format, side) {
@@ -37,10 +44,12 @@ function footerNote(match, format) {
     return parts.join(' • ');
 }
 
-function SlotRow({ label, scores, isWinner, withBorder }) {
+function SlotRow({ participant, isByeSlot, scores, isWinner, withBorder }) {
     return (
         <div className={`flex items-center justify-between px-3 py-2 ${withBorder ? 'border-b' : ''} ${isWinner ? 'font-semibold bg-green-50' : ''}`}>
-            <span className="truncate min-w-0">{label}</span>
+            <span className="truncate min-w-0">
+                <ParticipantName participant={participant} isByeSlot={isByeSlot}/>
+            </span>
             <span className="flex gap-2 ml-2 text-xs tabular-nums">
                 {scores.map((sc, i) => (
                     <span key={i} className={sc.won ? 'font-bold' : 'text-gray-500'}>
@@ -62,13 +71,15 @@ function MatchCard({ match, format, isLastRound, canScore, onScore }) {
         <div>
             <div className={`relative border rounded-md text-sm w-52 bg-white shadow-sm ${connector}`}>
                 <SlotRow
-                    label={participantLabel(match.participant1, false)}
+                    participant={match.participant1}
+                    isByeSlot={false}
                     scores={sideScores(match, format, 1)}
                     isWinner={p1Winner}
                     withBorder
                 />
                 <SlotRow
-                    label={participantLabel(match.participant2, match.isBye)}
+                    participant={match.participant2}
+                    isByeSlot={match.isBye}
                     scores={sideScores(match, format, 2)}
                     isWinner={p2Winner}
                 />

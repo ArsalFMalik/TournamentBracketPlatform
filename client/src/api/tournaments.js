@@ -30,6 +30,11 @@ export async function addParticipant(tournamentId, displayName) {
     return res.data;
 }
 
+export async function removeParticipant(tournamentId, participantId) {
+    const res = await api.delete(`/tournaments/${tournamentId}/participants/${participantId}`);
+    return res.data;
+}
+
 export async function generateBracket(tournamentId) {
     const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
     return res.data;
