@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
 const { determineSetWinner, determineMatchWinner } = require('../services/scoring');
+const { advanceWinner } = require('../services/advancement');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -78,22 +79,11 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
                 data: updateData,
             });
             if (claim.count === 0) throw new Error('ALREADY_COMPLETED');
-
+            
             if (matchWinner) {
-                if (match.nextMatchId) {
-                    const slotField = match.matchNumber % 2 === 1 ? 'participant1Id' : 'participant2Id';
-                    await tx.match.update({
-                        where: { id: match.nextMatchId },
-                        data: { [slotField]: updateData.winnerId },
-                    });
-                } else {
-                    await tx.tournament.update({
-                        where: { id: match.tournamentId },
-                        data: { status: 'completed' },
-                    });
-                }
+                await advanceWinner(tx, match, updateData.winnerId);
             }
-        });
+        }, { timeout: 15000 });
 
         const fullMatch = await prisma.match.findUnique({
             where: { id: match.id },

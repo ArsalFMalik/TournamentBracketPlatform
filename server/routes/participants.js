@@ -1,6 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
+const { advanceWinner } = require('../services/advancement');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -109,6 +110,67 @@ router.delete('/tournaments/:tournamentId/participants/:participantId', requireA
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong removing the participant.' });
+    }
+});
+
+router.post('/tournaments/:tournamentId/participants/:participantId/disqualify', requireAuth, async (req, res) => {
+    try {
+        const { tournamentId, participantId } = req.params;
+
+        const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+        if (!tournament) return res.status(404).json({ error: 'Tournament not found.' });
+        if (tournament.createdById !== req.user.userId) {
+            return res.status(403).json({ error: 'Only the tournament creator can disqualify participants.' });
+        }
+        if (tournament.status !== 'in_progress') {
+            return res.status(400).json({ error: 'Participants can only be disqualified while the tournament is in progress.' });
+        }
+
+        const participant = await prisma.participant.findUnique({ where: { id: participantId } });
+        if (!participant || participant.tournamentId !== tournamentId) {
+            return res.status(404).json({ error: 'Participant not found in this tournament.' });
+        }
+        if (participant.disqualified) {
+            return res.status(400).json({ error: 'This participant is already disqualified.' });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            const claim = await tx.participant.updateMany({
+                where: { id: participantId, disqualified: false },
+                data: { disqualified: true },
+            });
+            if (claim.count === 0) throw new Error('ALREADY_DISQUALIFIED');
+
+            const liveMatch = await tx.match.findFirst({
+                where: {
+                    tournamentId,
+                    status: { not: 'completed' },
+                    OR: [{ participant1Id: participantId }, { participant2Id: participantId }],
+                },
+            });
+            if (!liveMatch) throw new Error('NOT_IN_BRACKET');
+
+            const opponentId = liveMatch.participant1Id === participantId ? liveMatch.participant2Id : liveMatch.participant1Id;
+
+            if (opponentId) {
+                await tx.match.update({
+                    where: { id: liveMatch.id },
+                    data: { status: 'completed', winnerId: opponentId, isForfeit: true },
+                });
+                await advanceWinner(tx, liveMatch, opponentId);
+            }
+        }, { timeout: 15000 });
+
+        res.json({ message: 'Participant disqualified.' });
+    } catch (err) {
+        if (err.message === 'ALREADY_DISQUALIFIED') {
+            return res.status(400).json({ error: 'This participant is already disqualified.' });
+        }
+        if (err.message === 'NOT_IN_BRACKET') {
+            return res.status(400).json({ error: 'This participant has already been eliminated.' });
+        }
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong disqualifying the participant.' });
     }
 });
 
