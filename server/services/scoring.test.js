@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { determineSetWinner, determineMatchWinner } = require('./scoring');
+const { determineSetWinner, determineMatchWinner, validateSubmission } = require('./scoring');
 
 test('single_score: higher score wins, equal is a draw', () => {
     assert.strictEqual(determineSetWinner('single_score', null, { p1: 87, p2: 72 }), 'p1');
@@ -59,4 +59,39 @@ test('determineMatchWinner: all draws never decides the match', () => {
 test('determineMatchWinner: throws if a set is incomplete', () => {
     const sets = [{ p1: 15, p2: 10 }];
     assert.throws(() => determineMatchWinner('target_score', { target: 21, winBy: 2 }, sets, 1));
+});
+
+test('validateSubmission: accepts a decisive match', () => {
+    assert.deepStrictEqual(
+        validateSubmission('single_score', null, 1, [{ p1: 10, p2: 5 }]),
+        { matchWinner: 'p1' }
+    );
+});
+
+test('validateSubmission: an undecided match is valid with no winner yet', () => {
+    assert.deepStrictEqual(
+        validateSubmission('binary_result', null, 2, [{ result: 'p1_win' }]),
+        { matchWinner: null }
+    );
+});
+
+test('validateSubmission: rejects empty, non-array, and non-object sets', () => {
+    assert.ok(validateSubmission('single_score', null, 1, []).error);
+    assert.ok(validateSubmission('single_score', null, 1, 'nope').error);
+    assert.ok(validateSubmission('single_score', null, 1, [null]).error);
+});
+
+test('validateSubmission: rejects negative or fractional scores', () => {
+    assert.ok(validateSubmission('single_score', null, 1, [{ p1: -3, p2: 5 }]).error);
+    assert.ok(validateSubmission('single_score', null, 1, [{ p1: 2.5, p2: 1 }]).error);
+});
+
+test('validateSubmission: rejects an incomplete target_score set', () => {
+    const config = { target: 21, winBy: 2 };
+    assert.ok(validateSubmission('target_score', config, 1, [{ p1: 21, p2: 20 }]).error);
+});
+
+test('validateSubmission: rejects sets entered after the deciding set', () => {
+    const sets = [{ result: 'p1_win' }, { result: 'p1_win' }, { result: 'p2_win' }];
+    assert.ok(validateSubmission('binary_result', null, 2, sets).error);
 });

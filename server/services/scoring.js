@@ -51,4 +51,28 @@ function determineMatchWinner(scoringFormat, config, sets, setsToWin) {
     return null;
 }
 
-module.exports = { determineSetWinner, determineMatchWinner };
+function validateSubmission(scoringFormat, config, setsToWin, sets) {
+    if (!Array.isArray(sets) || sets.length === 0) {
+        return { error: 'sets must be a non-empty array.' };
+    }
+    if (!sets.every((s) => s && typeof s === 'object')) {
+        return { error: 'Each set must be an object.' };
+    }
+    if (scoringFormat !== 'binary_result') {
+        const valid = sets.every((s) => Number.isInteger(s.p1) && Number.isInteger(s.p2) && s.p1 >= 0 && s.p2 >= 0);
+        if (!valid) return { error: 'Scores must be non-negative whole numbers.' };
+    }
+    for (const s of sets) {
+        if (determineSetWinner(scoringFormat, config, s) === null) {
+            return { error: 'One or more sets are incomplete or invalid for this scoring format.' };
+        }
+    }
+    for (let i = 1; i < sets.length; i++) {
+        if (determineMatchWinner(scoringFormat, config, sets.slice(0, i), setsToWin)) {
+            return { error: 'The match was already decided before the last set entered.' };
+        }
+    }
+    return { matchWinner: determineMatchWinner(scoringFormat, config, sets, setsToWin) };
+}
+
+module.exports = { determineSetWinner, determineMatchWinner, validateSubmission };
