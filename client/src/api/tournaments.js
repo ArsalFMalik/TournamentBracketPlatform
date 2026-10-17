@@ -35,6 +35,11 @@ export async function removeParticipant(tournamentId, participantId) {
     return res.data;
 }
 
+export async function disqualifyParticipant(tournamentId, participantId) {
+    const res = await api.post(`/tournaments/${tournamentId}/participants/${participantId}/disqualify`);
+    return res.data;
+}
+
 export async function generateBracket(tournamentId) {
     const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
     return res.data;

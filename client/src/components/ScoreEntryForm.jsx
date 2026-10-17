@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { submitScore } from '../api/matches';
+import { submitScore, correctScore } from '../api/matches';
 
 function nameOf(p) {
     return p?.user?.username || p?.displayName || 'Unknown';
@@ -20,8 +20,9 @@ function isSetFilled(format, s) {
     return valid(s.p1) && valid(s.p2);
 }
 
-export default function ScoreEntryForm({ match, tournament, onClose }) {
+export default function ScoreEntryForm({ match, tournament, onClose, mode = 'score' }) {
     const queryClient = useQueryClient();
+    const isCorrection = mode === 'correct';
     const format = tournament.gameType.scoringFormat;
     const sc = tournament.scoringConfig || {};
     const setsToWin = sc.setsToWin ?? 1;
@@ -40,7 +41,10 @@ export default function ScoreEntryForm({ match, tournament, onClose }) {
     const p2Name = nameOf(match.participant2);
 
     const mutation = useMutation({
-        mutationFn: () => submitScore(match.id, sets.map((s) => toPayload(format, s))),
+        mutationFn: () => {
+            const payload = sets.map((s) => toPayload(format, s));
+            return isCorrection ? correctScore(match.id, payload) : submitScore(match.id, payload);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['matches', tournament.id] });
             queryClient.invalidateQueries({ queryKey: ['tournament', tournament.id] });
@@ -69,6 +73,11 @@ export default function ScoreEntryForm({ match, tournament, onClose }) {
                 {format === 'target_score' && ` • sets go to ${target}, win by ${winBy}`}
                 {format === 'binary_result' && ' • draws are allowed per set; add another set to break a tie'}
             </p>
+            {isCorrection && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    The corrected result must still decide the match. To replace a result with a draw, add the deciding set before submitting.
+                </p>
+            )}
 
             {sets.map((s, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -131,7 +140,7 @@ export default function ScoreEntryForm({ match, tournament, onClose }) {
                     className="text-xs bg-blue-600 text-white px-3 py-1 rounded ml-auto"
                     disabled={mutation.isPending}
                 >
-                    {mutation.isPending ? 'Submitting...' : 'Submit score'}
+                    {mutation.isPending ? 'Submitting...' : isCorrection ? 'Submit correction' : 'Submit score'}
                 </button>
             </div>
 

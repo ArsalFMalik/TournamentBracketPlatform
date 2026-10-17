@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import ScoreEntryForm from './ScoreEntryForm';
 import { roundLabel } from '../utils/rounds';
-import { Link } from 'react-router-dom';
 
 function participantLabel(p, isByeSlot) {
     if (p) return p.user?.username || p.displayName || 'Unknown';
@@ -11,14 +11,17 @@ function participantLabel(p, isByeSlot) {
 function ParticipantName({ participant, isByeSlot }) {
     if (!participant) return <span>{isByeSlot ? 'BYE' : 'TBD'}</span>;
     const name = participant.user?.username || participant.displayName || 'Unknown';
-    if (participant.userId) {
-        return (
-            <Link to={`/users/${participant.userId}`} className="hover:underline">
-                {name}
-            </Link>
-        );
-    }
-    return <span>{name}</span>;
+    const label = participant.userId ? (
+        <Link to={`/users/${participant.userId}`} className="hover:underline">{name}</Link>
+    ) : (
+        <span>{name}</span>
+    );
+    return (
+        <>
+            <span className={participant.disqualified ? 'line-through text-gray-400' : ''}>{label}</span>
+            {participant.disqualified && <span className="ml-1 text-xs text-red-600">DQ</span>}
+        </>
+    );
 }
 
 function sideScores(match, format, side) {
@@ -36,6 +39,7 @@ function sideScores(match, format, side) {
 
 function footerNote(match, format) {
     const parts = [];
+    if (match.isForfeit) parts.push('Forfeit');
     if (format === 'binary_result') {
         const draws = (match.scoreData?.sets || []).filter((s) => s.result === 'draw').length;
         if (draws > 0) parts.push(`${draws} draw${draws > 1 ? 's' : ''}`);
@@ -61,7 +65,7 @@ function SlotRow({ participant, isByeSlot, scores, isWinner, withBorder }) {
     );
 }
 
-function MatchCard({ match, format, isLastRound, canScore, onScore }) {
+function MatchCard({ match, format, isLastRound, canScore, canCorrect, onScore, onCorrect }) {
     const p1Winner = match.status === 'completed' && match.winnerId === match.participant1Id;
     const p2Winner = match.status === 'completed' && match.winnerId === match.participant2Id;
     const note = footerNote(match, format);
@@ -93,12 +97,20 @@ function MatchCard({ match, format, isLastRound, canScore, onScore }) {
                     {match.status === 'in_progress' ? 'Update score' : 'Enter score'}
                 </button>
             )}
+            {canCorrect && (
+                <button
+                    onClick={onCorrect}
+                    className="mt-1 text-xs border px-2 py-1 rounded bg-white hover:bg-gray-50"
+                >
+                    Correct score
+                </button>
+            )}
         </div>
     );
 }
 
 export default function Bracket({ matches, tournament, isCreator }) {
-    const [scoringMatchId, setScoringMatchId] = useState(null);
+    const [modal, setModal] = useState(null);
 
     if (!matches || matches.length === 0) return null;
 
@@ -117,8 +129,16 @@ export default function Bracket({ matches, tournament, isCreator }) {
         m.participant2Id &&
         m.status !== 'completed';
 
-    const scoringMatch = matches.find((m) => m.id === scoringMatchId);
-    const closeModal = () => setScoringMatchId(null);
+    const canCorrect = (m) =>
+        isCreator &&
+        m.status === 'completed' &&
+        !m.isBye &&
+        !m.isForfeit &&
+        !m.participant1?.disqualified &&
+        !m.participant2?.disqualified;
+
+    const modalMatch = modal ? matches.find((m) => m.id === modal.id) : null;
+    const closeModal = () => setModal(null);
 
     return (
         <>
@@ -137,7 +157,9 @@ export default function Bracket({ matches, tournament, isCreator }) {
                                         format={format}
                                         isLastRound={roundNumber === totalRounds}
                                         canScore={canScore(m)}
-                                        onScore={() => setScoringMatchId(m.id)}
+                                        canCorrect={canCorrect(m)}
+                                        onScore={() => setModal({ id: m.id, mode: 'score' })}
+                                        onCorrect={() => setModal({ id: m.id, mode: 'correct' })}
                                     />
                                 ))}
                             </div>
@@ -146,7 +168,7 @@ export default function Bracket({ matches, tournament, isCreator }) {
                 </div>
             </div>
 
-            {scoringMatch && (
+            {modalMatch && (
                 <div
                     className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
                     onClick={closeModal}
@@ -157,18 +179,20 @@ export default function Bracket({ matches, tournament, isCreator }) {
                     >
                         <div className="flex justify-between items-center">
                             <h3 className="font-semibold text-sm">
-                                {roundLabel(scoringMatch.roundNumber, totalRounds)}, Match {scoringMatch.matchNumber}
+                                {modal.mode === 'correct' ? 'Correct score — ' : ''}
+                                {roundLabel(modalMatch.roundNumber, totalRounds)}, Match {modalMatch.matchNumber}
                             </h3>
                             <button onClick={closeModal} className="text-gray-500 text-sm">✕</button>
                         </div>
                         <p className="text-sm text-gray-600">
-                            {participantLabel(scoringMatch.participant1, false)} vs{' '}
-                            {participantLabel(scoringMatch.participant2, false)}
+                            {participantLabel(modalMatch.participant1, false)} vs{' '}
+                            {participantLabel(modalMatch.participant2, false)}
                         </p>
                         <ScoreEntryForm
-                            key={scoringMatch.id}
-                            match={scoringMatch}
+                            key={`${modalMatch.id}-${modal.mode}`}
+                            match={modalMatch}
                             tournament={tournament}
+                            mode={modal.mode}
                             onClose={closeModal}
                         />
                     </div>

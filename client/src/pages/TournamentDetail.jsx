@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTournament, joinTournament, addParticipant, removeParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
+import { getTournament, joinTournament, addParticipant, removeParticipant, disqualifyParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
 
 function statusBadgeClass(status) {
@@ -65,6 +65,14 @@ export default function TournamentDetail() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tournament', id] }),
     });
 
+    const disqualifyMutation = useMutation({
+        mutationFn: (participantId) => disqualifyParticipant(id, participantId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['tournament', id] });
+            queryClient.invalidateQueries({ queryKey: ['matches', id] });
+        },
+    });
+
     if (isLoading) return <div className="p-8">Loading...</div>;
     if (isError) return <div className="p-8 text-red-600">Failed to load this tournament.</div>;
     if (!t) return <div className="p-8">Tournament not found.</div>;
@@ -72,6 +80,14 @@ export default function TournamentDetail() {
     const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
     const isCreator = currentUser?.id === t.createdBy.id;
     const isFull = t.participants.length >= t.maxParticipants;
+
+    const eliminatedIds = new Set();
+    (matchesData?.matches || []).forEach((m) => {
+        if (m.status === 'completed' && !m.isBye && m.winnerId) {
+            const loserId = m.winnerId === m.participant1Id ? m.participant2Id : m.participant1Id;
+            if (loserId) eliminatedIds.add(loserId);
+        }
+    });
 
     return (
         <div className="max-w-2xl mx-auto mt-16 p-6">
@@ -133,22 +149,44 @@ export default function TournamentDetail() {
                     {t.participants.map((p) => {
                         const name = p.user?.username || p.displayName || 'Guest';
                         const canRemove = t.status === 'registration' && (isCreator || (currentUser && p.userId === currentUser.id));
+                        const canDisqualify = isCreator && t.status === 'in_progress' && !p.disqualified && !eliminatedIds.has(p.id);
                         return (
                             <li key={p.id} className="border p-2 rounded text-sm flex justify-between items-center">
-                                {p.userId ? (
-                                    <Link to={`/users/${p.userId}`} className="hover:underline">{name}</Link>
-                                ) : (
-                                    <span>{name}</span>
-                                )}
-                                {canRemove && (
-                                    <button
-                                        onClick={() => removeMutation.mutate(p.id)}
-                                        className="text-xs text-red-600"
-                                        disabled={removeMutation.isPending}
-                                    >
-                                        {isCreator && p.userId !== currentUser?.id ? 'Remove' : 'Leave'}
-                                    </button>
-                                )}
+                                <span className="flex items-center gap-2">
+                                    {p.userId ? (
+                                        <Link to={`/users/${p.userId}`} className="hover:underline">{name}</Link>
+                                    ) : (
+                                        <span>{name}</span>
+                                    )}
+                                    {p.disqualified && <span className="text-xs text-red-600">Disqualified</span>}
+                                    {!p.disqualified && eliminatedIds.has(p.id) && (
+                                        <span className="text-xs text-gray-500">Eliminated</span>
+                                    )}
+                                </span>
+                                <span className="flex gap-3">
+                                    {canRemove && (
+                                        <button
+                                            onClick={() => removeMutation.mutate(p.id)}
+                                            className="text-xs text-red-600"
+                                            disabled={removeMutation.isPending}
+                                        >
+                                            {isCreator && p.userId !== currentUser?.id ? 'Remove' : 'Leave'}
+                                        </button>
+                                    )}
+                                    {canDisqualify && (
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm(`Disqualify ${name}? Their current match will be forfeited. This can't be undone.`)) {
+                                                    disqualifyMutation.mutate(p.id);
+                                                }
+                                            }}
+                                            className="text-xs text-red-600"
+                                            disabled={disqualifyMutation.isPending}
+                                        >
+                                            Disqualify
+                                        </button>
+                                    )}
+                                </span>
                             </li>
                         );
                     })}
@@ -156,6 +194,9 @@ export default function TournamentDetail() {
             )}
             {removeMutation.isError && (
                 <p className="text-red-600 text-sm mt-2">{removeMutation.error?.response?.data?.error}</p>
+            )}
+            {disqualifyMutation.isError && (
+                <p className="text-red-600 text-sm mt-2">{disqualifyMutation.error?.response?.data?.error}</p>
             )}
 
             {t.status === 'completed' && matchesData && (() => {
