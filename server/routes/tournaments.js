@@ -2,16 +2,25 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
 const { buildBracket } = require('../services/bracket')
+const { buildRoundRobin, computeStandings } = require('../services/roundRobin');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 router.post('/', requireAuth, async (req, res) => {
     try {
-        const { name, gameTypeId, maxParticipants, scoringConfig } = req.body;
+        const { name, gameTypeId, maxParticipants, scoringConfig, format } = req.body;
 
         if (!name || !gameTypeId || !maxParticipants) {
             return res.status(400).json({ error: 'name, gameTypeId, and maxParticipants are required.' });
+        }
+
+        const tournamentFormat = format || 'single_elimination';
+        if (!['single_elimination', 'round_robin'].includes(tournamentFormat)) {
+            return res.status(400).json({ error: 'Unknown tournament format.' });
+        }
+        if (tournamentFormat === 'round_robin' && maxParticipants > 16) {
+            return res.status(400).json({ error: 'Round robin tournaments are limited to 16 participants.' });
         }
 
         const gameType = await prisma.gameType.findUnique({ where: { id: gameTypeId } });
@@ -26,6 +35,7 @@ router.post('/', requireAuth, async (req, res) => {
                 maxParticipants,
                 scoringConfig: scoringConfig || { setsToWin: 1 },
                 createdById: req.user.userId,
+                format: tournamentFormat,
             },
             include: { gameType: true, createdBy: { select: { id: true, username: true } } },
         });
@@ -105,34 +115,45 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
         if (tournament.createdById !== req.user.userId) {
             return res.status(403).json({ error: 'Only the tournament creator can generate the bracket.' });
         }
-        if (tournament.status !== 'registration') {
-            return res.status(400).json({ error: 'This tournament\'s bracket has already been generated.' });
-        }
         if (tournament.participants.length < 2) {
             return res.status(400).json({ error: 'At least 2 participants are required to generate a bracket.' });
         }
+
+        const isRoundRobin = tournament.format === 'round_robin';
 
         const shuffled = [...tournament.participants];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
+        const ids = shuffled.map((p) => p.id);
 
-        const template = buildBracket(shuffled.map((p) => p.id));
-
-        const result = await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx) => {
             const claim = await tx.tournament.updateMany({
                 where: { id: tournament.id, status: 'registration' },
                 data: { status: 'in_progress' },
             });
-            if (claim.count === 0) {
-                throw new Error('ALREADY_GENERATED');
+            if (claim.count === 0) throw new Error('ALREADY_GENERATED');
+
+            await Promise.all(shuffled.map((p, i) => tx.participant.update({ where: { id: p.id }, data: { seedNumber: i + 1 } })));
+
+            if (isRoundRobin) {
+                const fixtures = buildRoundRobin(ids);
+                await tx.match.createMany({
+                    data: fixtures.map((m) => ({
+                        tournamentId: tournament.id,
+                        roundNumber: m.roundNumber,
+                        matchNumber: m.matchNumber,
+                        status: 'pending',
+                        isBye: false,
+                        participant1Id: m.participant1,
+                        participant2Id: m.participant2,
+                    })),
+                });
+                return;
             }
 
-            await Promise.all(
-                shuffled.map((p, i) => tx.participant.update({ where: { id: p.id }, data: { seedNumber: i + 1 } }))
-            );
-
+            const template = buildBracket(ids);
             const totalRounds = Math.max(...template.map((m) => m.roundNumber));
             const createdByKey = new Map();
 
@@ -159,14 +180,7 @@ router.post('/:id/generate-bracket', requireAuth, async (req, res) => {
 
                 rows.forEach((row) => createdByKey.set(`${round}-${row.matchNumber}`, row));
             }
-
-            await tx.tournament.update({
-                where: { id: tournament.id },
-                data: { status: 'in_progress' },
-            });
-
-            return createdByKey;
-        }, { timeout: 15000 }); // some headroom, but the real fix is fewer round trips
+        }, { timeout: 15000 });
 
         const matches = await prisma.match.findMany({
             where: { tournamentId: tournament.id },
