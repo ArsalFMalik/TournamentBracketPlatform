@@ -19,7 +19,7 @@ function computeRecord(matches, participantIds) {
     return record;
 }
 
-function deriveTournamentResult(participant, tournamentStatus, matches) {
+function deriveTournamentResult(participant, tournamentStatus, matches, roundRobin) {
     const totalRounds = matches.length ? Math.max(...matches.map((m) => m.roundNumber)) : 0;
 
     if (tournamentStatus === 'registration' || matches.length === 0) {
@@ -27,6 +27,17 @@ function deriveTournamentResult(participant, tournamentStatus, matches) {
     }
     if (participant.disqualified) {
         return { result: 'disqualified', totalRounds };
+    }
+
+    if (roundRobin) {
+        if (tournamentStatus !== 'completed') return { result: 'in_progress', totalRounds };
+        if (roundRobin.rank === 1) return { result: 'champion', totalRounds };
+        return {
+            result: 'placed',
+            rank: roundRobin.rank,
+            totalParticipants: roundRobin.totalParticipants,
+            totalRounds,
+        };
     }
 
     const lostMatch = matches.find(

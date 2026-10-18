@@ -120,3 +120,25 @@ test('result: a bye win is not treated as a loss', () => {
     ]);
     assert.strictEqual(deriveTournamentResult(player('a'), 'in_progress', matches).result, 'in_progress');
 });
+
+test('round robin result: in progress until the tournament completes', () => {
+    const r = deriveTournamentResult(player('a'), 'in_progress', bracket(), { rank: 1, totalParticipants: 4 });
+    assert.strictEqual(r.result, 'in_progress');
+});
+
+test('round robin result: rank 1 is champion once completed', () => {
+    const r = deriveTournamentResult(player('a'), 'completed', bracket(), { rank: 1, totalParticipants: 4 });
+    assert.strictEqual(r.result, 'champion');
+});
+
+test('round robin result: other ranks are reported as placed', () => {
+    assert.deepStrictEqual(
+        deriveTournamentResult(player('a'), 'completed', bracket(), { rank: 3, totalParticipants: 5 }),
+        { result: 'placed', rank: 3, totalParticipants: 5, totalRounds: 2 }
+    );
+});
+
+test('round robin result: disqualified is still disqualified', () => {
+    const r = deriveTournamentResult(player('a', true), 'completed', bracket(), { rank: 5, totalParticipants: 5 });
+    assert.strictEqual(r.result, 'disqualified');
+});
