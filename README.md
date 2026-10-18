@@ -112,13 +112,23 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Tournament creation now collects `setsToWin` and, for target-score games, `target` and `winBy` (pre-filled from the game type's defaults)
 
 ### Module 4 — Profiles, History, and Admin Tools
-Not started.
+- Public player profiles (`GET /api/users/:id/profile`): overall win/loss record and win rate, a per-game breakdown, championships, byes received, and a tournament history showing the result in each (champion, runner-up, eliminated in a given round, disqualified, or in progress). Record and result logic live in a tested pure-function service (`stats.js`)
+- Registered usernames link to profiles from the participant list and the bracket; guests have no profile and stay plain text
+- Remove/leave participant during registration: the creator can remove anyone, and a registered user can remove their own entry
+- Disqualification (creator only, tournament in progress): the participant's current match is forfeited and the opponent advances. If the opponent isn't known yet, the match forfeits automatically when they arrive, and the cascade continues if the winner then meets another disqualified player
+- Shared advancement service used by score submission, forfeits, and corrections, so winner placement follows one implementation
+- Score correction (creator only): a correction that keeps the same winner is always allowed; one that flips the winner is allowed only while the next match is still pending. A corrected result must still decide the match. Correcting the final changes the champion
+- Frontend: profile page; Disqualify buttons with a confirmation prompt; Correct score on completed matches (reusing the score form in correction mode); forfeit notes and struck-through "DQ" names on the bracket
 
 ### Module 5 — Analytics Dashboard and Polish
 Not started.
 
 ## Design Decisions and Limitations
-- Single-elimination only for committed scope; round-robin and double-elimination are stretch goals
+- Single-elimination only for committed scope; round-robin, double-elimination, and custom game types are stretch goals
 - Guest `displayName`s are checked against existing usernames at add-time, but not retroactively enforced if a user later registers with a name matching an existing guest entry — treated as an acceptable, documented edge case rather than a bug
-- Bye wins are not counted toward a player's win/loss record (planned for Module 4's profile stats)
+- Bye wins are not counted toward a player's win/loss record; byes received are shown seperately on profiles
 - Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`
+- Forfeits count as a loss for the disqualified player and a win for the opponent. They are flagged (`isForfeit`) so profiles can show them separately and later analytics can exclude them from upset statistics
+- Score corrections are limited: a winner-flipping correction is rejected once the next match has started, since supporting it would mean unwinding downstream results. Forfeited matches, byes, and matches involving a disqualified participant cannot be corrected
+- Participants can only be removed during registration; once a bracket is generated, the only way to take someone out is disqualification
+- Manual seed ordering is not supported; seeding is always a random shuffle
