@@ -1,7 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
-const { advanceWinner } = require('../services/advancement');
+const { advanceWinner, completeRoundRobinIfFinished } = require('../services/advancement');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -134,6 +134,8 @@ router.post('/tournaments/:tournamentId/participants/:participantId/disqualify',
             return res.status(400).json({ error: 'This participant is already disqualified.' });
         }
 
+        const isRoundRobin = tournament.format === 'round_robin';
+
         await prisma.$transaction(async (tx) => {
             const claim = await tx.participant.updateMany({
                 where: { id: participantId, disqualified: false },
@@ -141,23 +143,46 @@ router.post('/tournaments/:tournamentId/participants/:participantId/disqualify',
             });
             if (claim.count === 0) throw new Error('ALREADY_DISQUALIFIED');
 
-            const liveMatch = await tx.match.findFirst({
-                where: {
-                    tournamentId,
-                    status: { not: 'completed' },
-                    OR: [{ participant1Id: participantId }, { participant2Id: participantId }],
-                },
-            });
-            if (!liveMatch) throw new Error('NOT_IN_BRACKET');
-
-            const opponentId = liveMatch.participant1Id === participantId ? liveMatch.participant2Id : liveMatch.participant1Id;
-
-            if (opponentId) {
-                await tx.match.update({
-                    where: { id: liveMatch.id },
-                    data: { status: 'completed', winnerId: opponentId, isForfeit: true },
+            if (isRoundRobin) {
+                const open = await tx.match.findMany({
+                    where: {
+                        tournamentId,
+                        status: { not: 'completed' },
+                        OR: [{ participant1Id: participantId }, { participant2Id: participantId }],
+                    },
                 });
-                await advanceWinner(tx, liveMatch, opponentId);
+                await Promise.all(
+                    open.map((m) =>
+                        tx.match.update({
+                            where: { id: m.id },
+                            data: {
+                                status: 'completed',
+                                isForfeit: true,
+                                winnerId: m.participant1Id === participantId ? m.participant2Id : m.participant1Id,
+                            },
+                        })
+                    )
+                );
+                await completeRoundRobinIfFinished(tx, tournamentId);
+            } else {
+                const liveMatch = await tx.match.findFirst({
+                    where: {
+                        tournamentId,
+                        status: { not: 'completed' },
+                        OR: [{ participant1Id: participantId }, { participant2Id: participantId }],
+                    },
+                });
+                if (!liveMatch) throw new Error('NOT_IN_BRACKET');
+
+                const opponentId = liveMatch.participant1Id === participantId ? liveMatch.participant2Id : liveMatch.participant1Id;
+
+                if (opponentId) {
+                    await tx.match.update({
+                        where: { id: liveMatch.id },
+                        data: { status: 'completed', winnerId: opponentId, isForfeit: true },
+                    });
+                    await advanceWinner(tx, liveMatch, opponentId);
+                }
             }
         }, { timeout: 15000 });
 

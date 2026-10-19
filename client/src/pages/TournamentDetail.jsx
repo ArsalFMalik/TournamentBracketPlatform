@@ -181,7 +181,13 @@ export default function TournamentDetail() {
                                     {canDisqualify && (
                                         <button
                                             onClick={() => {
-                                                if (window.confirm(`Disqualify ${name}? Their current match will be forfeited. This can't be undone.`)) {
+                                                if (
+                                                    window.confirm(
+                                                        isRoundRobin
+                                                            ? `Disqualify ${name}? All of their remaining matches will be forfeited. This can't be undone.`
+                                                            : `Disqualify ${name}? Their current match will be forfeited. This can't be undone.`
+                                                    )
+                                                ) {
                                                     disqualifyMutation.mutate(p.id);
                                                 }
                                             }}
