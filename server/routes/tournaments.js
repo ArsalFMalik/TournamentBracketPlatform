@@ -89,8 +89,14 @@ router.get('/:id', async (req, res) => {
 
 router.get('/:id/matches', async (req, res) => {
     try {
+        const tournament = await prisma.tournament.findUnique({
+            where: { id: req.params.id },
+            include: { gameType: true },
+        });
+        if (!tournament) return res.status(404).json({ error: 'Tournament not found.' });
+
         const matches = await prisma.match.findMany({
-            where: { tournamentId: req.params.id },
+            where: { tournamentId: tournament.id },
             include: {
                 participant1: { include: { user: { select: { username: true } } } },
                 participant2: { include: { user: { select: { username: true } } } },
@@ -98,7 +104,25 @@ router.get('/:id/matches', async (req, res) => {
             },
             orderBy: [{ roundNumber: 'asc' }, { matchNumber: 'asc' }],
         });
-        res.json({ matches });
+
+        let standings;
+        if (tournament.format === 'round_robin') {
+            const participants = await prisma.participant.findMany({
+                where: { tournamentId: tournament.id },
+                include: { user: { select: { id: true, username: true } } },
+            });
+            const byId = new Map(participants.map((p) => [p.id, p]));
+            standings = computeStandings(participants, matches, tournament.gameType.scoringFormat).map((row) => {
+                const p = byId.get(row.participantId);
+                return {
+                    ...row,
+                    name: p.user?.username || p.displayName || 'Unknown',
+                    userId: p.userId,
+                };
+            });
+        }
+
+        res.json({ matches, standings });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong fetching matches.' });

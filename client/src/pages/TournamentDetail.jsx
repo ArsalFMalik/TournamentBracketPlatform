@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTournament, joinTournament, addParticipant, removeParticipant, disqualifyParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
+import RoundRobin from '../components/RoundRobin';
 
 function statusBadgeClass(status) {
     if (status === 'registration') return 'bg-gray-100 text-gray-700';
@@ -80,14 +81,17 @@ export default function TournamentDetail() {
     const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
     const isCreator = currentUser?.id === t.createdBy.id;
     const isFull = t.participants.length >= t.maxParticipants;
+    const isRoundRobin = t.format === 'round_robin';
 
     const eliminatedIds = new Set();
-    (matchesData?.matches || []).forEach((m) => {
-        if (m.status === 'completed' && !m.isBye && m.winnerId) {
-            const loserId = m.winnerId === m.participant1Id ? m.participant2Id : m.participant1Id;
-            if (loserId) eliminatedIds.add(loserId);
-        }
-    });
+    if (!isRoundRobin) {
+        (matchesData?.matches || []).forEach((m) => {
+            if (m.status === 'completed' && !m.isBye && m.winnerId) {
+                const loserId = m.winnerId === m.participant1Id ? m.participant2Id : m.participant1Id;
+                if (loserId) eliminatedIds.add(loserId);
+            }
+        });
+    }
 
     return (
         <div className="max-w-2xl mx-auto mt-16 p-6">
@@ -99,6 +103,7 @@ export default function TournamentDetail() {
                 </span>
                 {t.participants.length}/{t.maxParticipants} participants
             </p>
+            <p className="text-xs text-gray-500 mb-4">{isRoundRobin ? 'Round Robin' : 'Single Elimination'}</p>
 
             {currentUser && !isFull && t.status === 'registration' && (
                 <button
@@ -200,8 +205,10 @@ export default function TournamentDetail() {
             )}
 
             {t.status === 'completed' && matchesData && (() => {
-                const final = matchesData.matches.reduce((a, b) => (b.roundNumber > a.roundNumber ? b : a));
-                const champion = final.winner?.user?.username || final.winner?.displayName;
+                const champion = isRoundRobin ? matchesData.standings?.[0]?.name : (() => {
+                    const final = matchesData.matches.reduce((a, b) => (b.roundNumber > a.roundNumber ? b : a));
+                    return final.winner?.user?.username || final.winner?.displayName;
+                })();
                 return (
                     <div className="mt-6 p-4 border rounded-lg bg-yellow-50 text-center">
                         <div className="text-xs uppercase tracking-wide text-yellow-700">Champion</div>
@@ -242,11 +249,18 @@ export default function TournamentDetail() {
 
             {t.status !== 'registration' && (
                 <div className="mt-6">
-                    <h2 className="font-semibold mb-2">Bracket</h2>
+                    <h2 className="font-semibold mb-2">{isRoundRobin ? 'Standings' : 'Bracket'}</h2>
                     {!matchesData ? (
-                        <p className="text-sm text-gray-500">Loading bracket...</p>
+                        <p className="text-sm text-gray-500">Loading...</p>
+                    ) : isRoundRobin ? (
+                        <RoundRobin
+                            matches={matchesData.matches}
+                            standings={matchesData.standings}
+                            tournament={t}
+                            isCreator={isCreator}
+                        />
                     ) : (
-                        <Bracket matches={matchesData.matches} tournament={t} isCreator={isCreator}/>
+                        <Bracket matches={matchesData.matches} tournament={t} isCreator={isCreator} />
                     )}
                 </div>
             )}

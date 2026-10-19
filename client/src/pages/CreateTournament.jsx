@@ -10,6 +10,7 @@ export default function CreateTournament() {
     const [setsToWin, setSetsToWin] = useState(1);
     const [target, setTarget] = useState('');
     const [winBy, setWinBy] = useState('');
+    const [format, setFormat] = useState('single_elimination');
     const navigate = useNavigate();
 
     const { data: gameTypesData, isLoading } = useQuery({
@@ -43,6 +44,7 @@ export default function CreateTournament() {
         mutation.mutate({
             name,
             gameTypeId,
+            format,
             maxParticipants: Number(maxParticipants),
             scoringConfig,
         });
@@ -70,10 +72,15 @@ export default function CreateTournament() {
                         <option key={gt.id} value={gt.id}>{gt.name}</option>
                     ))}
                 </select>
+                <select className="border p-2 rounded" value={format} onChange={(e) => setFormat(e.target.value)}>
+                    <option value="single_elimination">Single Elimination</option>
+                    <option value="round_robin">Round Robin</option>
+                </select>
                 <input
                     className="border p-2 rounded"
                     type="number"
                     min="2"
+                    max={format === 'round_robin' ? 16 : undefined}
                     placeholder="Max participants"
                     value={maxParticipants}
                     onChange={(e) => setMaxParticipants(e.target.value)}

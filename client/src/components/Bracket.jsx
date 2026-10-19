@@ -65,7 +65,7 @@ function SlotRow({ participant, isByeSlot, scores, isWinner, withBorder }) {
     );
 }
 
-function MatchCard({ match, format, isLastRound, canScore, canCorrect, onScore, onCorrect }) {
+export function MatchCard({ match, format, isLastRound, canScore, canCorrect, onScore, onCorrect }) {
     const p1Winner = match.status === 'completed' && match.winnerId === match.participant1Id;
     const p2Winner = match.status === 'completed' && match.winnerId === match.participant2Id;
     const note = footerNote(match, format);

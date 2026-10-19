@@ -28,4 +28,17 @@ async function advanceWinner(tx, match, winnerId) {
     }
 }
 
-module.exports = { advanceWinner };
+async function completeRoundRobinIfFinished(tx, tournamentId) {
+    await tx.$queryRaw`SELECT id FROM "tournaments" WHERE id = ${tournamentId} FOR UPDATE`;
+    const remaining = await tx.match.count({
+        where: { tournamentId, status: { not: 'completed' } },
+    });
+    if (remaining === 0) {
+        await tx.tournament.update({
+            where: { id: tournamentId },
+            data: { status: 'completed' },
+        });
+    }
+}
+
+module.exports = { advanceWinner, completeRoundRobinIfFinished };

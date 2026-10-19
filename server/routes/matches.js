@@ -2,7 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
 const { validateSubmission } = require('../services/scoring');
-const { advanceWinner } = require('../services/advancement');
+const { advanceWinner, completeRoundRobinIfFinished } = require('../services/advancement');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -62,7 +62,11 @@ router.post('/:id/submit-score', requireAuth, async (req, res) => {
             if (claim.count === 0) throw new Error('ALREADY_COMPLETED');
             
             if (matchWinner) {
-                await advanceWinner(tx, match, updateData.winnerId);
+                if (match.tournament.format === 'round_robin') {
+                    await completeRoundRobinIfFinished(tx, match.tournamentId);
+                } else {
+                    await advanceWinner(tx, match, updateData.winnerId);
+                }
             }
         }, { timeout: 15000 });
 
