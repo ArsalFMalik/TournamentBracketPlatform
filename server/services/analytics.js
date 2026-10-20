@@ -76,9 +76,23 @@ function averageSetsPerMatch(matches) {
     return { count, average: count ? Math.round((total / count) * 100) / 100 : null };
 }
 
+function totalSetsPlayed(matches) {
+    let sets = 0;
+    let count = 0;
+    for (const m of matches) {
+        if (m.status !== 'completed' || m.isBye || m.isForfeit) continue;
+        const played = m.scoreData?.sets;
+        if (!Array.isArray(played) || played.length === 0) continue;
+        count++;
+        sets += played.length;
+    }
+    return { matches: count, sets };
+}
+
 module.exports = {
     matchResultMetrics,
     closestMatches,
     mostDominantMatches,
     averageSetsPerMatch,
+    totalSetsPlayed,
 };

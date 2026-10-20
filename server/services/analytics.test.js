@@ -5,6 +5,7 @@ const {
     closestMatches,
     mostDominantMatches,
     averageSetsPerMatch,
+    totalSetsPlayed,
 } = require('./analytics');
 
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} is not close to ${b}`);
@@ -187,4 +188,21 @@ test('average sets skips byes, forfeits, and unfinished matches', () => {
 
 test('average sets with no usable matches', () => {
     assert.deepStrictEqual(averageSetsPerMatch([]), { count: 0, average: null });
+});
+
+test('totalSetsPlayed sums sets across scored matches', () => {
+    const list = [
+        m(),
+        m({ scoreData: { sets: [{ p1: 1, p2: 0 }, { p1: 0, p2: 1 }, { p1: 1, p2: 0 }] } }),
+    ];
+    assert.deepStrictEqual(totalSetsPlayed(list), { matches: 2, sets: 4 });
+});
+
+test('totalSetsPlayed skips byes, forfeits, and unfinished matches', () => {
+    const list = [m(), m({ isBye: true }), m({ isForfeit: true }), m({ status: 'in_progress' })];
+    assert.deepStrictEqual(totalSetsPlayed(list), { matches: 1, sets: 1 });
+});
+
+test('totalSetsPlayed with no usable matches', () => {
+    assert.deepStrictEqual(totalSetsPlayed([]), { matches: 0, sets: 0 });
 });

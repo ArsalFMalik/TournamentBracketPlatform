@@ -3,6 +3,8 @@ const { PrismaClient } = require('@prisma/client');
 const requireAuth = require('../middleware/auth');
 const { buildBracket } = require('../services/bracket')
 const { buildRoundRobin, computeStandings } = require('../services/roundRobin');
+const { closestMatches, mostDominantMatches, averageSetsPerMatch, totalSetsPlayed } = require('../services/analytics');
+const { toAnalyticsMatch, summarizeMatch } = require('../services/matchSummary');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -253,6 +255,50 @@ router.post('/:id/reset-bracket', requireAuth, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong resetting the bracket.' });
+    }
+});
+
+router.get('/:id/stats', async (req, res) => {
+    try {
+        const tournament = await prisma.tournament.findUnique({
+            where: { id: req.params.id },
+            include: { gameType: true },
+        });
+        if (!tournament) return res.status(404).json({ error: 'Tournament not found.' });
+        if (tournament.status !== 'completed') {
+            return res.status(400).json({ error: 'Stats are only available for completed tournaments.' });
+        }
+
+        const matches = await prisma.match.findMany({
+            where: { tournamentId: tournament.id },
+            include: {
+                participant1: { include: { user: { select: { username: true } } } },
+                participant2: { include: { user: { select: { username: true } } } },
+            },
+        });
+
+        const analyticsMatches = matches.map((m) => toAnalyticsMatch(m, tournament.gameType.scoringFormat));
+        const byId = new Map(matches.map((m) => [m.id, m]));
+        const summarize = (r) => (r ? summarizeMatch(byId.get(r.id), r, tournament) : null);
+
+        const totals = totalSetsPlayed(analyticsMatches);
+
+        res.json({
+            tournament: {
+                id: tournament.id,
+                name: tournament.name,
+                format: tournament.format,
+                gameType: tournament.gameType.name,
+            },
+            matchesScored: totals.matches,
+            totalSets: totals.sets,
+            averageSetsPerMatch: averageSetsPerMatch(analyticsMatches).average,
+            closestMatch: summarize(closestMatches(analyticsMatches, 1)[0]),
+            biggestWin: summarize(mostDominantMatches(analyticsMatches, 1)[0]),
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong fetching tournament stats.' });
     }
 });
 

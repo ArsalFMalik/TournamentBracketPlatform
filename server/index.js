@@ -7,6 +7,7 @@ const gameTypeRoutes = require('./routes/gameTypes');
 const participantRoutes = require('./routes/participants');
 const matchRoutes = require('./routes/matches');
 const userRoutes = require('./routes/users');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/game-types', gameTypeRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
