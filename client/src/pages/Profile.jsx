@@ -3,12 +3,19 @@ import { useQuery } from '@tanstack/react-query';
 import { getProfile } from '../api/users';
 import { roundLabel } from '../utils/rounds';
 
+function ordinal(n) {
+    const suffixes = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+}
+
 function resultLabel(t) {
     if (t.result === 'champion') return 'Champion';
     if (t.result === 'eliminated') {
         if (t.eliminatedRound === t.totalRounds) return 'Runner-up';
         return `Eliminated in ${roundLabel(t.eliminatedRound, t.totalRounds)}`;
     }
+    if (t.result === 'placed') return `Finished ${ordinal(t.rank)} of ${t.totalParticipants}`;
     if (t.result === 'disqualified') return 'Disqualified';
     if (t.result === 'in_progress') return 'In progress';
     return 'Registration open';

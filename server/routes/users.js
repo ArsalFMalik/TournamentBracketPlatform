@@ -1,6 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { computeRecord, deriveTournamentResult } = require('../services/stats');
+const { computeStandings } = require('../services/roundRobin');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -29,12 +30,31 @@ router.get('/:id/profile', async (req, res) => {
             matchesByTournament.get(m.tournamentId).push(m);
         }
 
+        const rrIds = participants.filter((p) => p.tournament.format === 'round_robin').map((p) => p.tournamentId);
+        const rrEntrants = rrIds.length ? await prisma.participant.findMany({ where: { tournamentId: { in: rrIds } } }) : [];
+        const entrantsByTournament = new Map();
+        for (const e of rrEntrants) {
+            if (!entrantsByTournament.has(e.tournamentId)) entrantsByTournament.set(e.tournamentId, []);
+            entrantsByTournament.get(e.tournamentId).push(e);
+        }
+
         const history = participants.map((p) => {
-            const outcome = deriveTournamentResult(
-                p,
-                p.tournament.status,
-                matchesByTournament.get(p.tournamentId) || []
-            );
+            const tMatches = matchesByTournament.get(p.tournamentId) || [];
+
+            let roundRobin;
+            if (p.tournament.format === 'round_robin') {
+                const table = computeStandings(
+                    entrantsByTournament.get(p.tournamentId) || [],
+                    tMatches,
+                    p.tournament.gameType.scoringFormat
+                );
+                roundRobin = {
+                    rank: table.findIndex((row) => row.participantId === p.id) + 1,
+                    totalParticipants: table.length,
+                };
+            }
+
+            const outcome = deriveTournamentResult(p, p.tournament.status, tMatches, roundRobin);
             return {
                 tournamentId: p.tournamentId,
                 tournamentName: p.tournament.name,
