@@ -1,6 +1,6 @@
 # Tournament Bracket Platform
 
-A game-agnostic tournament management platform supporting single-elimination brackets across multiple sports and esports, through a configurable scoring system rather than hardcoded per-game logic.
+A game-agnostic tournament management platform supporting single-elimination and round-robin tournaments across multiple sports and esports, through a configurable scoring system rather than hardcoded per-game logic.
 
 ## Tech Stack
 
@@ -80,10 +80,11 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 
 - **User** — registered accounts
 - **GameType** — the 8 fixed games and their scoring format
-- **Tournament** — belongs to a game type and a creator, holds `scoringConfig`
+- **Tournament** — belongs to a game type and a creator, holds `scoringConfig` and a `format` (`single_elimination` or `round_robin`), fixed at creation
 - **Team** — optional grouping of participants, scoped per tournament
-- **Participant** — a tournament entrant; either a registered `User` or a guest (`displayName` only), optionally grouped under a `Team`
-- **Match** — belongs to a tournament, links to the next match via `nextMatchId` to form the bracket tree, tracks `isBye` separately from regular results
+- **Participant** — a tournament entrant; either a registered `User` or a guest (`displayName` only), optionally grouped under a `Team`; carries a
+  `disqualified` flag
+- **Match** — belongs to a tournament and stores its results as `scoreData: { sets: [...] }`. In single-elimination, matches link to the next match via `nextMatchId` to form the bracket tree, and `isBye` is tracked separately from regular results. In round-robin, matches have no next match and are grouped into rounds of fixtures. `isForfeit` marks results decided by disqualification
 
 ## Module Progress
 
@@ -113,22 +114,25 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 
 ### Module 4 — Profiles, History, and Admin Tools
 - Public player profiles (`GET /api/users/:id/profile`): overall win/loss record and win rate, a per-game breakdown, championships, byes received, and a tournament history showing the result in each (champion, runner-up, eliminated in a given round, disqualified, or in progress). Record and result logic live in a tested pure-function service (`stats.js`)
-- Registered usernames link to profiles from the participant list and the bracket; guests have no profile and stay plain text
+- Registered usernames link to profiles from the participant list, the bracket, and the round-robin standings; guests have no profile and stay plain text
 - Remove/leave participant during registration: the creator can remove anyone, and a registered user can remove their own entry
-- Disqualification (creator only, tournament in progress): the participant's current match is forfeited and the opponent advances. If the opponent isn't known yet, the match forfeits automatically when they arrive, and the cascade continues if the winner then meets another disqualified player
+- Disqualification (creator only, tournament in progress): In single-elimination, the participant's current match is forfeited and the opponent advances. If the opponent isn't known yet, the match forfeits automatically when they arrive, and the cascade continues if the winner then meets another disqualified player. In round-robin, all of the participant's unplayed matches are forfeited, and results already played stand
 - Shared advancement service used by score submission, forfeits, and corrections, so winner placement follows one implementation
-- Score correction (creator only): a correction that keeps the same winner is always allowed; one that flips the winner is allowed only while the next match is still pending. A corrected result must still decide the match. Correcting the final changes the champion
-- Frontend: profile page; Disqualify buttons with a confirmation prompt; Correct score on completed matches (reusing the score form in correction mode); forfeit notes and struck-through "DQ" names on the bracket
+- Score correction (creator only): In single-elimination, a correction that keeps the same winner is always allowed; one that flips the winner is allowed only while the next match is still pending. In round-robin, corrections are always allowed, since nothing downstream depends on a result. A corrected result must still decide the match. Correcting the final (or the deciding round-robin match) can change the champion
+- Frontend: profile page; Disqualify buttons with a confirmation prompt; Correct score on completed matches (reusing the score form in correction mode); forfeit notes and struck-through "DQ" names on the bracket; a format selector on tournament creation; a round-robin view with a standings table and fixtures grouped by round
+- Round-robin format (stretch goal, completed): chosen at tournament creation and capped at 16 participants. Fixtures are generated with the circle method, with one participant sitting out each round when the count is odd. Matches are scored with the same sets and `setsToWin` as single-elimination. A live standings table ranks participants by wins, then head-to-head among tied players, then set difference, then point difference, then seed, with disqualified participants listed last. The tournament completes when every match is completed (claimed under a row lock so the final two matches finishing together can't leave it stuck), and the champion is the rank 1 participant. Fixture generation and standings are covered by unit tests
 
 ### Module 5 — Analytics Dashboard and Polish
-Not started.
 
 ## Design Decisions and Limitations
-- Single-elimination only for committed scope; round-robin, double-elimination, and custom game types are stretch goals
+- Single-elimination and round-robin are supported. Double-elimination and custom game types remain stretch goals
 - Guest `displayName`s are checked against existing usernames at add-time, but not retroactively enforced if a user later registers with a name matching an existing guest entry — treated as an acceptable, documented edge case rather than a bug
 - Bye wins are not counted toward a player's win/loss record; byes received are shown seperately on profiles
-- Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`
+- Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`. This applies to round-robin too, so round-robin standings never contain drawn matches
 - Forfeits count as a loss for the disqualified player and a win for the opponent. They are flagged (`isForfeit`) so profiles can show them separately and later analytics can exclude them from upset statistics
-- Score corrections are limited: a winner-flipping correction is rejected once the next match has started, since supporting it would mean unwinding downstream results. Forfeited matches, byes, and matches involving a disqualified participant cannot be corrected
+- Score corrections in single-elimination are limited: a winner-flipping correction is rejected once the next match has started, since supporting it would mean unwinding downstream results. Forfeited matches, byes, and matches involving a disqualified participant cannot be corrected
 - Participants can only be removed during registration; once a bracket is generated, the only way to take someone out is disqualification
 - Manual seed ordering is not supported; seeding is always a random shuffle
+- Round-robin is capped at 16 participants (120 matches), and the format is fixed once a tournament is created
+- Round-robin ties that survive every tiebreaker (wins, head-to-head, set difference, point difference) are decided by seed, which is the random draw. Head-to-head only compares players level on wins, and a three-way cycle falls through to set and point difference
+- Forfeits add no set or point data, so they affect wins and losses in the standings but not set or point difference
