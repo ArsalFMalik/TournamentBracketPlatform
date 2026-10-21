@@ -55,6 +55,9 @@ export default function Profile() {
             <Link to="/" className="text-sm text-blue-600">← Tournaments</Link>
             <h1 className="text-2xl font-bold mt-2">{user.username}</h1>
             <p className="text-sm text-gray-500 mb-4">Member since {memberSince}</p>
+            <Link to={`/versus?a=${encodeURIComponent(user.username)}`} className="text-sm text-blue-600">
+                Compare with another player
+            </Link>
 
             {overall.tournamentsEntered === 0 ? (
                 <p className="text-sm text-gray-500">This player hasn't entered any tournaments yet.</p>

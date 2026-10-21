@@ -19,6 +19,7 @@ export default function TournamentList() {
                         + Create Tournament
                     </Link>
                     <Link to="/analytics" className="text-sm text-blue-600">Analytics</Link>
+                    <Link to="/versus" className="text-sm text-blue-600">Head-to-Head</Link>
                 </div>
             </div>
             <div className="flex flex-col gap-2">

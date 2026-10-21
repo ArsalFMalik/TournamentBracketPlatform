@@ -6,6 +6,7 @@ import CreateTournament from './pages/CreateTournament';
 import TournamentDetail from './pages/TournamentDetail';
 import Profile from './pages/Profile';
 import Analytics from './pages/Analytics';
+import Versus from './pages/Versus';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
       <Route path="/tournaments/:id" element={<TournamentDetail />} />
       <Route path="/users/:id" element={<Profile />} />
       <Route path="/analytics" element={<Analytics />} />
+      <Route path="/versus" element={<Versus />} />
     </Routes>
   );
 }

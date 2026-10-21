@@ -1,6 +1,6 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { computeRecord, deriveTournamentResult } = require('../services/stats');
+const { computeRecord, deriveTournamentResult, computeHeadToHead, orientSets } = require('../services/stats');
 const { computeStandings } = require('../services/roundRobin');
 
 const router = express.Router();
@@ -105,6 +105,113 @@ router.get('/:id/profile', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Something went wrong fetching the profile.' });
+    }
+});
+
+router.get('/lookup', async (req, res) => {
+    try {
+        const username = String(req.query.username || '').trim();
+        if (!username) return res.status(400).json({ error: 'Enter a username.' });
+
+        const matches = await prisma.user.findMany({
+            where: { username: { equals: username, mode: 'insensitive' } },
+            select: { id: true, username: true },
+            take: 2,
+        });
+
+        const exact = matches.find((u) => u.username === username);
+        const user = exact || (matches.length === 1 ? matches[0] : null);
+
+        if (!user) {
+            return res.status(404).json({
+                error: matches.length > 1 ? 'Type the username exactly, including capitalization.'  : 'No player found with that username.',
+            });
+        }
+
+        res.json({ user });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong looking up that player.' });
+    }
+});
+
+router.get('/:a/versus/:b', async (req, res) => {
+    try {
+        const { a, b } = req.params;
+        if (a === b) return res.status(400).json({ error: 'Pick two different players.' });
+
+        const [userA, userB] = await Promise.all([
+            prisma.user.findUnique({ where: { id: a }, select: { id: true, username: true } }),
+            prisma.user.findUnique({ where: { id: b }, select: { id: true, username: true } }),
+        ]);
+        if (!userA || !userB) return res.status(404).json({ error: 'User not found.' });
+
+        const participants = await prisma.participant.findMany({
+            where: { userId: { in: [a, b] } },
+            select: { id: true, userId: true },
+        });
+        const aIds = participants.filter((p) => p.userId === a).map((p) => p.id);
+        const bIds = participants.filter((p) => p.userId === b).map((p) => p.id);
+
+        const matches = aIds.length && bIds.length
+            ? await prisma.match.findMany({
+                where: {
+                    status: 'completed',
+                    isBye: false,
+                    OR: [
+                        { participant1Id: { in: aIds }, participant2Id: { in: bIds } },
+                        { participant1Id: { in: bIds }, participant2Id: { in: aIds } },
+                    ],
+                },
+                include: {
+                    tournament: {
+                        select: {
+                            id: true,
+                            name: true,
+                            format: true,
+                            createdAt: true,
+                            gameType: { select: { name: true, scoringFormat: true } },
+                        },
+                    },
+                },
+            }) : [];
+
+        const { overall, byGame, results } = computeHeadToHead(
+            matches.map((m) => ({ ...m, gameType: m.tournament.gameType.name })),
+            aIds,
+            bIds
+        );
+
+        const byId = new Map(matches.map((m) => [m.id, m]));
+        const list = results.map((r) => {
+            const m = byId.get(r.id);
+            const { scoringFormat } = m.tournament.gameType;
+            return {
+                matchId: m.id,
+                tournamentId: m.tournament.id,
+                tournamentName: m.tournament.name,
+                tournamentCreatedAt: m.tournament.createdAt,
+                gameType: m.tournament.gameType.name,
+                scoringFormat,
+                format: m.tournament.format,
+                roundNumber: m.roundNumber,
+                matchNumber: m.matchNumber,
+                isForfeit: r.isForfeit,
+                winner: r.winner,
+                sets: r.isForfeit ? [] : orientSets(scoringFormat, m.scoreData?.sets, r.aIsP1),
+            };
+        });
+        list.sort(
+            (x, y) =>
+                new Date(y.tournamentCreatedAt) - new Date(x.tournamentCreatedAt) ||
+                y.roundNumber - x.roundNumber ||
+                y.matchNumber - x.matchNumber
+        );
+
+        res.json({ users: { a: userA, b: userB }, overall, byGame, matches: list });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Something went wrong fetching the head-to-head record.' });
     }
 });
 
