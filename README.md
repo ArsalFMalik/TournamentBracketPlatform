@@ -81,7 +81,7 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - **User** — registered accounts
 - **GameType** — the 8 fixed games and their scoring format
 - **Tournament** — belongs to a game type and a creator, holds `scoringConfig` and a `format` (`single_elimination` or `round_robin`), fixed at creation
-- **Team** — optional grouping of participants, scoped per tournament
+- **Team** — modeled in the schema but not used by any feature
 - **Participant** — a tournament entrant; either a registered `User` or a guest (`displayName` only), optionally grouped under a `Team`; carries a
   `disqualified` flag
 - **Match** — belongs to a tournament and stores its results as `scoreData: { sets: [...] }`. In single-elimination, matches link to the next match via `nextMatchId` to form the bracket tree, and `isBye` is tracked separately from regular results. In round-robin, matches have no next match and are grouped into rounds of fixtures. `isForfeit` marks results decided by disqualification
@@ -123,16 +123,28 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Round-robin format (stretch goal, completed): chosen at tournament creation and capped at 16 participants. Fixtures are generated with the circle method, with one participant sitting out each round when the count is odd. Matches are scored with the same sets and `setsToWin` as single-elimination. A live standings table ranks participants by wins, then head-to-head among tied players, then set difference, then point difference, then seed, with disqualified participants listed last. The tournament completes when every match is completed (claimed under a row lock so the final two matches finishing together can't leave it stuck), and the champion is the rank 1 participant. Fixture generation and standings are covered by unit tests
 
 ### Module 5 — Analytics Dashboard and Polish
+- Analytics service (`analytics.js`): pure, unit-tested functions that turn stored set scores into per-match margins (normalized as a share of total points, or of games for Chess and Tekken, so different games are comparable), plus closest matches, most dominant matches, average sets per match, and total sets played
+- Platform analytics (`GET /api/analytics/overview`): totals, tournaments by game and by format, average participants per tournament (overall and per format), top players by win rate, and the closest and most dominant matches across the platform. Round-robin matches count everywhere
+- Per-tournament stats (`GET /api/tournaments/:id/stats`, completed tournaments only): matches scored, total sets, average sets per match, closest match, and biggest win
+- Head-to-head (`GET /api/users/:a/versus/:b`): the record between two registered players across every tournament and game, a per-game split,  and a list of their matches with scores shown from the first player's side. Players are found by typing an exact username; the page never suggests or lists usernames
+- Frontend: an analytics dashboard (summary cards, a per-game bar chart, a format filter on the average-participants card, a top-players table, and closest and dominant match lists), a stats panel on completed tournaments that refreshes after score corrections, a head-to-head comparison page, and a "Compare with another player" link on profiles
 
 ## Design Decisions and Limitations
 - Single-elimination and round-robin are supported. Double-elimination and custom game types remain stretch goals
 - Guest `displayName`s are checked against existing usernames at add-time, but not retroactively enforced if a user later registers with a name matching an existing guest entry — treated as an acceptable, documented edge case rather than a bug
 - Bye wins are not counted toward a player's win/loss record; byes received are shown seperately on profiles
 - Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`. This applies to round-robin too, so round-robin standings never contain drawn matches
-- Forfeits count as a loss for the disqualified player and a win for the opponent. They are flagged (`isForfeit`) so profiles can show them separately and later analytics can exclude them from upset statistics
+- Forfeits count as a loss for the disqualified player and a win for the opponent. They are flagged (`isForfeit`) so profiles can show them separately and later analytics exclude them from score-based statistics
 - Score corrections in single-elimination are limited: a winner-flipping correction is rejected once the next match has started, since supporting it would mean unwinding downstream results. Forfeited matches, byes, and matches involving a disqualified participant cannot be corrected
 - Participants can only be removed during registration; once a bracket is generated, the only way to take someone out is disqualification
 - Manual seed ordering is not supported; seeding is always a random shuffle
 - Round-robin is capped at 16 participants (120 matches), and the format is fixed once a tournament is created
 - Round-robin ties that survive every tiebreaker (wins, head-to-head, set difference, point difference) are decided by seed, which is the random draw. Head-to-head only compares players level on wins, and a three-way cycle falls through to set and point difference
 - Forfeits add no set or point data, so they affect wins and losses in the standings but not set or point difference
+- Upset statistics are not tracked: seeding is a random shuffle, so a seed says nothing about skill. Closest and most dominant matches are reported instead, calculated from the stored scores
+- Match duration, tournament duration, and activity over time are not tracked: matches don't record when they started, and completion times aren't stored
+- Margin-based stats skip byes, forfeits, unfinished matches, and Chess or Tekken matches decided by a single game, since none of them has a margin worth ranking. A multi-set winner can score fewer total points than the loser, so those matches rank as very close and never as dominant
+- Top players need at least 5 completed matches to be listed, so one lucky win can't top the list. Byes are excluded from the record and forfeits  count, matching profiles
+- Average participants only counts tournaments whose bracket has been generated, since a headcount is still changing during registration. Guest entrants are included
+- In head-to-head, forfeits are listed but kept out of the headline record and per-game split, because no contest took place. This differs from  profiles, where a forfeit counts as a win or a loss
+- Head-to-head matches players by exact username, ignoring capitalization  unless two accounts differ only by case, and only registered players can be compared
