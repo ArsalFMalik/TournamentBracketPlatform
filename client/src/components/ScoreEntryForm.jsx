@@ -48,6 +48,7 @@ export default function ScoreEntryForm({ match, tournament, onClose, mode = 'sco
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['matches', tournament.id] });
             queryClient.invalidateQueries({ queryKey: ['tournament', tournament.id] });
+            queryClient.invalidateQueries({ queryKey: ['tournamentStats', tournament.id] });
             onClose?.();
         },
     });

@@ -14,9 +14,12 @@ export default function TournamentList() {
         <div className="max-w-2xl mx-auto mt-16 p-6">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-xl font-bold">Tournaments</h1>
-                <Link to="/tournaments/new" className="bg-blue-600 text-white px-3 py-2 rounded text-sm">
-                    + Create Tournament
-                </Link>
+                <div className="flex gap-3 items-center">
+                    <Link to="/tournaments/new" className="bg-blue-600 text-white px-3 py-2 rounded text-sm">
+                        + Create Tournament
+                    </Link>
+                    <Link to="/analytics" className="text-sm text-blue-600">Analytics</Link>
+                </div>
             </div>
             <div className="flex flex-col gap-2">
                 {data?.tournaments.map((t) => (

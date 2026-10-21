@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTournament, joinTournament, addParticipant, removeParticipant, disqualifyParticipant, generateBracket, resetBracket, getMatches } from '../api/tournaments';
 import Bracket from '../components/Bracket';
 import RoundRobin from '../components/RoundRobin';
+import TournamentStats from '../components/TournamentStats';
 
 function statusBadgeClass(status) {
     if (status === 'registration') return 'bg-gray-100 text-gray-700';
@@ -268,6 +269,13 @@ export default function TournamentDetail() {
                     ) : (
                         <Bracket matches={matchesData.matches} tournament={t} isCreator={isCreator} />
                     )}
+                </div>
+            )}
+
+            {t.status === 'completed' && (
+                <div className="mt-6">
+                    <h2 className="font-semibold mb-2">Tournament stats</h2>
+                    <TournamentStats tournamentId={t.id} />
                 </div>
             )}
         </div>

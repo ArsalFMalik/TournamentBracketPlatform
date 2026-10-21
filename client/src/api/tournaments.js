@@ -54,3 +54,8 @@ export async function getMatches(tournamentId) {
     const res = await api.get(`/tournaments/${tournamentId}/matches`);
     return res.data;
 }
+
+export async function getTournamentStats(tournamentId) {
+    const res = await api.get(`/tournaments/${tournamentId}/stats`);
+    return res.data;
+}
