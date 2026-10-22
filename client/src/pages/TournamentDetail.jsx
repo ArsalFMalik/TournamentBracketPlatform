@@ -25,7 +25,7 @@ export default function TournamentDetail() {
 
     const t = data?.tournament;
 
-    const { data: matchesData } = useQuery({
+    const { data: matchesData, isError: matchesError } = useQuery({
         queryKey: ['matches', id],
         queryFn: () => getMatches(id),
         enabled: t?.status === 'in_progress' || t?.status === 'completed',
@@ -257,7 +257,9 @@ export default function TournamentDetail() {
             {t.status !== 'registration' && (
                 <div className="mt-6">
                     <h2 className="font-semibold mb-2">{isRoundRobin ? 'Standings' : 'Bracket'}</h2>
-                    {!matchesData ? (
+                    {matchesError ? (
+                        <p className="text-sm text-red-600">Failed to load the bracket.</p>
+                    ) : !matchesData ? (
                         <p className="text-sm text-gray-500">Loading...</p>
                     ) : isRoundRobin ? (
                         <RoundRobin

@@ -10,7 +10,8 @@ const userRoutes = require('./routes/users');
 const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
+app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : undefined));
 app.use(express.json());
 app.use('/api', participantRoutes);
 

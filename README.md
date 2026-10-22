@@ -35,6 +35,8 @@ DATABASE_URL="your-postgres-connection-string"
 JWT_SECRET="a-long-random-string"
 PORT=5000
 ```
+Copy `server/.env.example` as a starting point. `CORS_ORIGIN` is optional locally and restricts which frontend origins may call the API once deployed.
+
 Run migrations and seed data:
 ```
 npx prisma migrate dev
@@ -49,6 +51,11 @@ npm run dev
 ```
 cd client
 npm install
+```
+Optionally copy `client/.env.example` and set `VITE_API_URL` if the backend isn't running at `http://localhost:5000/api`.
+
+Then start the dev server:
+```
 npm run dev
 ```
 Visit `http://localhost:5173`.
@@ -129,6 +136,7 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Head-to-head (`GET /api/users/:a/versus/:b`): the record between two registered players across every tournament and game, a per-game split,  and a list of their matches with scores shown from the first player's side. Players are found by typing an exact username; the page never suggests or lists usernames
 - Frontend: an analytics dashboard (summary cards, a per-game bar chart, a format filter on the average-participants card, a top-players table, and closest and dominant match lists), a stats panel on completed tournaments that refreshes after score corrections, a head-to-head comparison page, and a "Compare with another player" link on profiles
 - Export as image: a "Download as PNG" button on brackets and round-robin standings. The export adds a title row (tournament, game, format, and the champion once completed) and leaves out the admin buttons
+- Navigation: a header with links to Tournaments, Analytics, Head-to-Head, the signed-in player's profile, log in, register, and log out. Creating a tournament requires being logged in, and an expired login signs the user out on the next protected request. Pages show loading, error, and empty states, and unknown URLs show a not-found page
 
 ## Design Decisions and Limitations
 - Single-elimination and round-robin are supported. Double-elimination and custom game types remain stretch goals
@@ -150,3 +158,4 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - In head-to-head, forfeits are listed but kept out of the headline record and per-game split, because no contest took place. This differs from  profiles, where a forfeit counts as a win or a loss
 - Head-to-head matches players by exact username, ignoring capitalization  unless two accounts differ only by case, and only registered players can be compared
 - Export is PNG only. Very large brackets or fixture lists are scaled down to stay within browser canvas limits, so a 16-player export may be lower-resolution than a small one
+- Logins are JWTs kept in the browser's localStorage and last 7 days; there is no refresh token or server-side logout
