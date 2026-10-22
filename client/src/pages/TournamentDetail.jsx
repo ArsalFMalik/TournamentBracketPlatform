@@ -99,6 +99,11 @@ export default function TournamentDetail() {
             <h1 className="text-xl font-bold">{t.name}</h1>
             <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
                 {t.gameType.name}
+                {t.gameType.isCustom && (
+                    <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
+                        Custom
+                    </span>
+                )}
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeClass(t.status)}`}>
                     {t.status.replace('_', ' ')}
                 </span>

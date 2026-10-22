@@ -83,10 +83,12 @@ npm test
 
 Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `winBy`), so the same game type can be configured differently per tournament (e.g. Valorant as Bo1 or Bo3). The three scoring formats differ in how a single set's winner is determined: **single_score** sets are won simply by scoring more than the opponent; **binary_result** sets are decided by outcome only (win, loss, or draw), with no numeric score tracked; and **target_score** sets are won by reaching a target score with a required win-by margin (e.g. first to 21, win by 2).
 
+Instead of one of the 8 games, a tournament creator can choose **Custom…** and define a game for that tournament only: a name, one of the three scoring formats, and (for target score) the target and win-by margin. A custom game is stored as its own row, so scoring, standings, stats, profiles, and exports work with it unchanged. Custom games are not saved or shared with other tournaments.
+
 ## Data Model (core tables)
 
 - **User** — registered accounts
-- **GameType** — the 8 fixed games and their scoring format
+- **GameType** — the 8 built-in games and their scoring format, plus one row per custom game (`isCustom`), each created for a single tournament
 - **Tournament** — belongs to a game type and a creator, holds `scoringConfig` and a `format` (`single_elimination` or `round_robin`), fixed at creation
 - **Team** — modeled in the schema but not used by any feature
 - **Participant** — a tournament entrant; either a registered `User` or a guest (`displayName` only), optionally grouped under a `Team`; carries a
@@ -138,8 +140,13 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Export as image: a "Download as PNG" button on brackets and round-robin standings. The export adds a title row (tournament, game, format, and the champion once completed) and leaves out the admin buttons
 - Navigation: a header with links to Tournaments, Analytics, Head-to-Head, the signed-in player's profile, log in, register, and log out. Creating a tournament requires being logged in, and an expired login signs the user out on the next protected request. Pages show loading, error, and empty states, and unknown URLs show a not-found page
 
+### Stretch goals
+- "Custom…" option on tournament creation: the creator names the game, picks a scoring format, and sets any target or win-by margin
+- Created in the same transaction as its tournament, validated by a tested pure function (name length, format, whole-number ranges)
+- Analytics, profiles, and head-to-head group all custom games under a single "Custom" bucket, while tournaments and match highlights show the name the creator typed. Tournament lists and pages show a Custom badge
+
 ## Design Decisions and Limitations
-- Single-elimination and round-robin are supported. Double-elimination and custom game types remain stretch goals
+- Single-elimination and round-robin are supported, and tournaments can use a per-tournament custom game. Double-elimination remains a stretch goal
 - Guest `displayName`s are checked against existing usernames at add-time, but not retroactively enforced if a user later registers with a name matching an existing guest entry — treated as an acceptable, documented edge case rather than a bug
 - Bye wins are not counted toward a player's win/loss record; byes received are shown seperately on profiles
 - Draws are allowed per set but never decide a match; a tied match needs extra sets until someone reaches `setsToWin`. This applies to round-robin too, so round-robin standings never contain drawn matches
@@ -159,3 +166,6 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Head-to-head matches players by exact username, ignoring capitalization  unless two accounts differ only by case, and only registered players can be compared
 - Export is PNG only. Very large brackets or fixture lists are scaled down to stay within browser canvas limits, so a 16-player export may be lower-resolution than a small one
 - Logins are JWTs kept in the browser's localStorage and last 7 days; there is no refresh token or server-side logout
+- Custom games belong to the tournament they were created for. They are not saved or shared, and they are left out of the list of 8 built-in games. Saved, shareable custom games are future work
+- Custom games use the same three scoring formats; they can't define new scoring rules
+- Custom names are free text and may repeat or match a built-in name, which is why aggregates group them under one "Custom" bucket

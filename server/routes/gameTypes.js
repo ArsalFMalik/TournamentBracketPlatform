@@ -6,7 +6,10 @@ const prisma = new PrismaClient();
 
 router.get('/', async (req, res) => {
     try {
-        const gameTypes = await prisma.gameType.findMany({ orderBy: { name: 'asc' } });
+        const gameTypes = await prisma.gameType.findMany({
+            where: { isCustom: false },
+            orderBy: { name: 'asc' }
+        });
         res.json({ gameTypes });
     } catch (err) {
         console.error(err);

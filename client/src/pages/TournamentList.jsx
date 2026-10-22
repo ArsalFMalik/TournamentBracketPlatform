@@ -34,7 +34,14 @@ export default function TournamentList() {
                         >
                             <div className="font-semibold">{t.name}</div>
                             <div className="text-sm text-gray-500">
-                                {t.gameType.name} • {t.format === 'round_robin' ? 'Round robin' : 'Single elimination'} •{' '}
+                                {t.gameType.name}
+                                {t.gameType.isCustom && (
+                                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs">
+                                        Custom
+                                    </span>
+                                )}
+                                {' • '}
+                                {t.format === 'round_robin' ? 'Round robin' : 'Single elimination'} •{' '}
                                 {t.participants.length}/{t.maxParticipants} participants • {t.status.replace('_', ' ')}
                             </div>
                         </Link>

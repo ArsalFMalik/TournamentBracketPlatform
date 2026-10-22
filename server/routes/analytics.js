@@ -23,6 +23,7 @@ router.get('/overview', async (req, res) => {
             totalUsers,
             matchesPlayed,
             gameTypes,
+            customTournaments,
             formatGroups,
             generatedTournaments,
             userParticipants,
@@ -30,7 +31,11 @@ router.get('/overview', async (req, res) => {
         ] = await Promise.all([
             prisma.user.count(),
             prisma.match.count({ where: { status: 'completed', isBye: false, isForfeit: false } }),
-            prisma.gameType.findMany({ include: { _count: { select: { tournaments: true } } } }),
+            prisma.gameType.findMany({
+                where: { isCustom: false },
+                include: { _count: { select: { tournaments: true } } },
+            }),
+            prisma.tournament.count({ where: { gameType: { isCustom: true } } }),
             prisma.tournament.groupBy({ by: ['format'], _count: { _all: true } }),
             prisma.tournament.findMany({
                 where: { status: { not: 'registration' } },
@@ -67,6 +72,7 @@ router.get('/overview', async (req, res) => {
                 scoringFormat: g.scoringFormat,
                 tournaments: g._count.tournaments,
             }))
+            .concat(customTournaments > 0 ? [{ name: 'Custom', scoringFormat: null, tournaments: customTournaments }] : [])
             .sort((a, b) => b.tournaments - a.tournaments || a.name.localeCompare(b.name));
 
         const counts = { all: [], single_elimination: [], round_robin: [] };

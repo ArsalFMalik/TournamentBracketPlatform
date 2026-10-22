@@ -22,9 +22,10 @@ model User {
 
 model GameType {
   id            String  @id @default(uuid())
-  name          String  @unique
+  name          String
   scoringFormat String
   config        Json?
+  isCustom      Boolean @default(false)
 
   tournaments Tournament[]
 

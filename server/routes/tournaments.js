@@ -5,16 +5,23 @@ const { buildBracket } = require('../services/bracket')
 const { buildRoundRobin, computeStandings } = require('../services/roundRobin');
 const { closestMatches, mostDominantMatches, averageSetsPerMatch, totalSetsPlayed } = require('../services/analytics');
 const { toAnalyticsMatch, summarizeMatch } = require('../services/matchSummary');
+const { validateCustomGame } = require('../services/customGame');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 router.post('/', requireAuth, async (req, res) => {
     try {
-        const { name, gameTypeId, maxParticipants, scoringConfig, format } = req.body;
+        const { name, gameTypeId, customGame, maxParticipants, scoringConfig, format } = req.body;
 
-        if (!name || !gameTypeId || !maxParticipants) {
-            return res.status(400).json({ error: 'name, gameTypeId, and maxParticipants are required.' });
+        if (!name || !maxParticipants) {
+            return res.status(400).json({ error: 'name and maxParticipants are required.' });
+        }
+        if (!gameTypeId && !customGame) {
+            return res.status(400).json({ error: 'Choose a game type or define a custom game.' });
+        }
+        if (gameTypeId && customGame) {
+            return res.status(400).json({ error: 'Send either gameTypeId or customGame, not both.' });
         }
 
         const tournamentFormat = format || 'single_elimination';
@@ -25,21 +32,54 @@ router.post('/', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Round robin tournaments are limited to 16 participants.' });
         }
 
+        const include = { gameType: true, createdBy: { select: { id: true, username: true } } };
+
+        if (customGame) {
+            const check = validateCustomGame(customGame, scoringConfig);
+            if (check.error) return res.status(400).json({ error: check.error });
+
+            const tournament = await prisma.$transaction(
+                async (tx) => {
+                    const gameType = await tx.gameType.create({
+                        data: {
+                            name: check.gameType.name,
+                            scoringFormat: check.gameType.scoringFormat,
+                            isCustom: true,
+                            ...(check.gameType.config ? { config: check.gameType.config } : {}),
+                        },
+                    });
+                    return tx.tournament.create({
+                        data: {
+                            name,
+                            format: tournamentFormat,
+                            maxParticipants,
+                            scoringConfig: check.scoringConfig,
+                            gameTypeId: gameType.id,
+                            createdById: req.user.userId,
+                        },
+                        include,
+                    });
+                }, { timeout: 15000 }
+            );
+
+            return res.status(201).json({ tournament });
+        }
+
         const gameType = await prisma.gameType.findUnique({ where: { id: gameTypeId } });
-        if (!gameType) {
+        if (!gameType || gameType.isCustom) {
             return res.status(404).json({ error: 'Game type not found.' });
         }
 
         const tournament = await prisma.tournament.create({
             data: {
                 name,
+                format: tournamentFormat,
                 gameTypeId,
                 maxParticipants,
                 scoringConfig: scoringConfig || { setsToWin: 1 },
                 createdById: req.user.userId,
-                format: tournamentFormat,
             },
-            include: { gameType: true, createdBy: { select: { id: true, username: true } } },
+            include,
         });
 
         res.status(201).json({ tournament });

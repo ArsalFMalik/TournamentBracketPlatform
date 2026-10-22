@@ -14,11 +14,17 @@ async function main() {
     ];
 
     for (const game of gameTypes) {
-        await prisma.gameType.upsert({
-            where: { name: game.name },
-            update: { scoringFormat: game.scoringFormat, config: game.config },
-            create: game,
+        const existing = await prisma.gameType.findFirst({
+            where: { name: game.name, isCustom: false },
         });
+        if (existing) {
+            await prisma.gameType.update({
+                where: { id: existing.id },
+                data: { scoringFormat: game.scoringFormat, config: game.config },
+            });
+        } else {
+            await prisma.gameType.create({ data: game });
+        }
     }
 
     console.log('Game types seeded successfully.');

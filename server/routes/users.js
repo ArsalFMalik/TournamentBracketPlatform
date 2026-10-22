@@ -73,10 +73,15 @@ router.get('/:id/profile', async (req, res) => {
         };
 
         const groups = new Map();
-        participants.forEach((p, i) => {
-            const key = p.tournament.gameTypeId;
+        participants.forEach((p) => {
+            const isCustom = p.tournament.gameType.isCustom;
+            const key = isCustom ? 'custom' : p.tournament.gameTypeId;
             if (!groups.has(key)) {
-                groups.set(key, { gameType: p.tournament.gameType.name, participantIds: [], entries: [] });
+                groups.set(key, {
+                    gameType: isCustom ? 'Custom' : p.tournament.gameType.name,
+                    participantIds: [],
+                    entries: [],
+                });
             }
             groups.get(key).participantIds.push(p.id);
             groups.get(key).entries.push(history.find((h) => h.tournamentId === p.tournamentId));
@@ -170,17 +175,20 @@ router.get('/:a/versus/:b', async (req, res) => {
                             name: true,
                             format: true,
                             createdAt: true,
-                            gameType: { select: { name: true, scoringFormat: true } },
+                            gameType: { select: { name: true, scoringFormat: true, isCustom: true } },
                         },
                     },
                 },
             }) : [];
 
-        const { overall, byGame, results } = computeHeadToHead(
-            matches.map((m) => ({ ...m, gameType: m.tournament.gameType.name })),
-            aIds,
-            bIds
-        );
+            const { overall, byGame, results } = computeHeadToHead(
+                matches.map((m) => ({
+                    ...m,
+                    gameType: m.tournament.gameType.isCustom ? 'Custom' : m.tournament.gameType.name,
+                })),
+                aIds,
+                bIds
+            );
 
         const byId = new Map(matches.map((m) => [m.id, m]));
         const list = results.map((r) => {
