@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ScoreEntryForm from './ScoreEntryForm';
 import { roundLabel } from '../utils/rounds';
+import ExportButton from './ExportButton';
+import ExportHeader from './ExportHeader';
+import { exportFilename } from '../utils/exportImage';
 
 function participantLabel(p, isByeSlot) {
     if (p) return p.user?.username || p.displayName || 'Unknown';
@@ -91,6 +94,7 @@ export function MatchCard({ match, format, isLastRound, canScore, canCorrect, on
             </div>
             {canScore && (
                 <button
+                    data-export-hide
                     onClick={onScore}
                     className="mt-1 text-xs border px-2 py-1 rounded bg-white hover:bg-gray-50"
                 >
@@ -99,6 +103,7 @@ export function MatchCard({ match, format, isLastRound, canScore, canCorrect, on
             )}
             {canCorrect && (
                 <button
+                    data-export-hide
                     onClick={onCorrect}
                     className="mt-1 text-xs border px-2 py-1 rounded bg-white hover:bg-gray-50"
                 >
@@ -111,6 +116,7 @@ export function MatchCard({ match, format, isLastRound, canScore, canCorrect, on
 
 export default function Bracket({ matches, tournament, isCreator }) {
     const [modal, setModal] = useState(null);
+    const exportRef = useRef(null);
 
     if (!matches || matches.length === 0) return null;
 
@@ -120,6 +126,8 @@ export default function Bracket({ matches, tournament, isCreator }) {
         roundNumber,
         matches: matches.filter((m) => m.roundNumber === roundNumber).sort((a, b) => a.matchNumber - b.matchNumber),
     }));
+    const final = matches.find((m) => m.roundNumber === totalRounds);
+    const champion = tournament.status === 'completed' ? final?.winner?.user?.username || final?.winner?.displayName : null;
 
     const canScore = (m) =>
         isCreator &&
@@ -142,29 +150,33 @@ export default function Bracket({ matches, tournament, isCreator }) {
 
     return (
         <>
+            <ExportButton targetRef={exportRef} filename={exportFilename(tournament, 'bracket')}/>
             <div className="overflow-x-auto">
-                <div className="flex gap-8 p-2 min-w-max">
-                    {rounds.map(({ roundNumber, matches: roundMatches }) => (
-                        <div key={roundNumber} className="flex flex-col">
-                            <h3 className="text-sm font-semibold text-gray-600 mb-2">
-                                {roundLabel(roundNumber, totalRounds)}
-                            </h3>
-                            <div className="flex flex-col justify-around flex-1 gap-4">
-                                {roundMatches.map((m) => (
-                                    <MatchCard
-                                        key={m.id}
-                                        match={m}
-                                        format={format}
-                                        isLastRound={roundNumber === totalRounds}
-                                        canScore={canScore(m)}
-                                        canCorrect={canCorrect(m)}
-                                        onScore={() => setModal({ id: m.id, mode: 'score' })}
-                                        onCorrect={() => setModal({ id: m.id, mode: 'correct' })}
-                                    />
-                                ))}
+                <div ref={exportRef} className="min-w-max bg-white">
+                    <ExportHeader tournament={tournament} champion={champion}/>
+                    <div className="flex gap-8 p-2 min-w-max">
+                        {rounds.map(({ roundNumber, matches: roundMatches }) => (
+                            <div key={roundNumber} className="flex flex-col">
+                                <h3 className="text-sm font-semibold text-gray-600 mb-2">
+                                    {roundLabel(roundNumber, totalRounds)}
+                                </h3>
+                                <div className="flex flex-col justify-around flex-1 gap-4">
+                                    {roundMatches.map((m) => (
+                                        <MatchCard
+                                            key={m.id}
+                                            match={m}
+                                            format={format}
+                                            isLastRound={roundNumber === totalRounds}
+                                            canScore={canScore(m)}
+                                            canCorrect={canCorrect(m)}
+                                            onScore={() => setModal({ id: m.id, mode: 'score' })}
+                                            onCorrect={() => setModal({ id: m.id, mode: 'correct' })}
+                                        />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             </div>
 

@@ -128,6 +128,7 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Per-tournament stats (`GET /api/tournaments/:id/stats`, completed tournaments only): matches scored, total sets, average sets per match, closest match, and biggest win
 - Head-to-head (`GET /api/users/:a/versus/:b`): the record between two registered players across every tournament and game, a per-game split,  and a list of their matches with scores shown from the first player's side. Players are found by typing an exact username; the page never suggests or lists usernames
 - Frontend: an analytics dashboard (summary cards, a per-game bar chart, a format filter on the average-participants card, a top-players table, and closest and dominant match lists), a stats panel on completed tournaments that refreshes after score corrections, a head-to-head comparison page, and a "Compare with another player" link on profiles
+- Export as image: a "Download as PNG" button on brackets and round-robin standings. The export adds a title row (tournament, game, format, and the champion once completed) and leaves out the admin buttons
 
 ## Design Decisions and Limitations
 - Single-elimination and round-robin are supported. Double-elimination and custom game types remain stretch goals
@@ -148,3 +149,4 @@ Every tournament stores its own `scoringConfig` (e.g. `setsToWin`, `target`, `wi
 - Average participants only counts tournaments whose bracket has been generated, since a headcount is still changing during registration. Guest entrants are included
 - In head-to-head, forfeits are listed but kept out of the headline record and per-game split, because no contest took place. This differs from  profiles, where a forfeit counts as a win or a loss
 - Head-to-head matches players by exact username, ignoring capitalization  unless two accounts differ only by case, and only registered players can be compared
+- Export is PNG only. Very large brackets or fixture lists are scaled down to stay within browser canvas limits, so a 16-player export may be lower-resolution than a small one

@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ScoreEntryForm from './ScoreEntryForm';
 import { MatchCard } from './Bracket';
+import ExportButton from './ExportButton';
+import ExportHeader from './ExportHeader';
+import { exportFilename } from '../utils/exportImage';
 
 function labelOf(p) {
     return p?.user?.username || p?.displayName || 'Unknown';
@@ -23,6 +26,7 @@ function StandingName({ row }) {
 
 export default function RoundRobin({ matches, standings, tournament, isCreator }) {
     const [modal, setModal] = useState(null);
+    const exportRef = useRef(null);
 
     if (!matches || matches.length === 0 || !standings) return null;
 
@@ -30,6 +34,7 @@ export default function RoundRobin({ matches, standings, tournament, isCreator }
     const showPoints = format !== 'binary_result';
     const completed = tournament.status === 'completed';
     const totalRounds = Math.max(...matches.map((m) => m.roundNumber));
+    const champion = completed ? standings[0]?.name : null;
 
     const rounds = Array.from({ length: totalRounds }, (_, i) => i + 1).map((roundNumber) => {
         const roundMatches = matches.filter((m) => m.roundNumber === roundNumber).sort((a, b) => a.matchNumber - b.matchNumber);
@@ -60,69 +65,73 @@ export default function RoundRobin({ matches, standings, tournament, isCreator }
 
     return (
         <>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm border">
-                    <thead>
-                        <tr className="bg-gray-50 text-left">
-                            <th className="p-2">#</th>
-                            <th className="p-2">Player</th>
-                            <th className="p-2">P</th>
-                            <th className="p-2">W</th>
-                            <th className="p-2">L</th>
-                            <th className="p-2">Sets</th>
-                            {showPoints && <th className="p-2">Points</th>}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {standings.map((row) => (
-                            <tr
-                                key={row.participantId}
-                                className={`border-t ${completed && row.rank === 1 ? 'bg-green-50 font-semibold' : ''}`}
-                            >
-                                <td className="p-2">{row.rank}</td>
-                                <td className="p-2"><StandingName row={row} /></td>
-                                <td className="p-2">{row.played}</td>
-                                <td className="p-2">{row.wins}</td>
-                                <td className="p-2">{row.losses}</td>
-                                <td className="p-2">{row.setsWon}-{row.setsLost}</td>
-                                {showPoints && <td className="p-2">{row.pointsFor}-{row.pointsAgainst}</td>}
+            <ExportButton targetRef={exportRef} filename={exportFilename(tournament, 'standings')}/>
+            <div ref={exportRef} className="bg-white">
+                <ExportHeader tournament={tournament} champion={champion}/>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm border">
+                        <thead>
+                            <tr className="bg-gray-50 text-left">
+                                <th className="p-2">#</th>
+                                <th className="p-2">Player</th>
+                                <th className="p-2">P</th>
+                                <th className="p-2">W</th>
+                                <th className="p-2">L</th>
+                                <th className="p-2">Sets</th>
+                                {showPoints && <th className="p-2">Points</th>}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-                Ranked by wins, then head-to-head, set difference, and point difference. Disqualified players are listed last.
-            </p>
-
-            <h3 className="font-semibold mt-6 mb-2">Fixtures</h3>
-            <div className="flex flex-col gap-4">
-                {rounds.map(({ roundNumber, matches: roundMatches, sittingOut }) => (
-                    <div key={roundNumber}>
-                        <h4 className="text-sm font-semibold text-gray-600 mb-2">
-                            Round {roundNumber}
-                            {sittingOut.length > 0 && (
-                                <span className="ml-2 font-normal text-xs text-gray-500">
-                                    Sitting out: {sittingOut.map((s) => s.name).join(', ')}
-                                </span>
-                            )}
-                        </h4>
-                        <div className="flex flex-wrap gap-4">
-                            {roundMatches.map((m) => (
-                                <MatchCard
-                                    key={m.id}
-                                    match={m}
-                                    format={format}
-                                    isLastRound={true}
-                                    canScore={canScore(m)}
-                                    canCorrect={canCorrect(m)}
-                                    onScore={() => setModal({ id: m.id, mode: 'score' })}
-                                    onCorrect={() => setModal({ id: m.id, mode: 'correct' })}
-                                />
+                        </thead>
+                        <tbody>
+                            {standings.map((row) => (
+                                <tr
+                                    key={row.participantId}
+                                    className={`border-t ${completed && row.rank === 1 ? 'bg-green-50 font-semibold' : ''}`}
+                                >
+                                    <td className="p-2">{row.rank}</td>
+                                    <td className="p-2"><StandingName row={row} /></td>
+                                    <td className="p-2">{row.played}</td>
+                                    <td className="p-2">{row.wins}</td>
+                                    <td className="p-2">{row.losses}</td>
+                                    <td className="p-2">{row.setsWon}-{row.setsLost}</td>
+                                    {showPoints && <td className="p-2">{row.pointsFor}-{row.pointsAgainst}</td>}
+                                </tr>
                             ))}
+                        </tbody>
+                    </table>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                    Ranked by wins, then head-to-head, set difference, and point difference. Disqualified players are listed last.
+                </p>
+
+                <h3 className="font-semibold mt-6 mb-2">Fixtures</h3>
+                <div className="flex flex-col gap-4">
+                    {rounds.map(({ roundNumber, matches: roundMatches, sittingOut }) => (
+                        <div key={roundNumber}>
+                            <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                                Round {roundNumber}
+                                {sittingOut.length > 0 && (
+                                    <span className="ml-2 font-normal text-xs text-gray-500">
+                                        Sitting out: {sittingOut.map((s) => s.name).join(', ')}
+                                    </span>
+                                )}
+                            </h4>
+                            <div className="flex flex-wrap gap-4">
+                                {roundMatches.map((m) => (
+                                    <MatchCard
+                                        key={m.id}
+                                        match={m}
+                                        format={format}
+                                        isLastRound={true}
+                                        canScore={canScore(m)}
+                                        canCorrect={canCorrect(m)}
+                                        onScore={() => setModal({ id: m.id, mode: 'score' })}
+                                        onCorrect={() => setModal({ id: m.id, mode: 'correct' })}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
             {modalMatch && (
