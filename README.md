@@ -10,6 +10,9 @@ A game-agnostic tournament management platform supporting single-elimination and
 | Backend    | Node.js, Express, Prisma ORM                    |
 | Database   | PostgreSQL (hosted on Railway), JSONB for flexible scoring config |
 | Auth       | JWT (jsonwebtoken + bcrypt)                     |
+| Hosting    | Railway (frontend, backend, and PostgreSQL) |
+
+Live demo: https://tournament-bracket-platform.up.railway.app/
 
 ## Project Structure
 
@@ -65,6 +68,17 @@ Visit `http://localhost:5173`.
 cd server
 npm test
 ```
+
+## Deployment
+
+All three services run on Railway in one project: the PostgreSQL database, the Express backend (root directory `/server`), and the frontend (root directory `/client`, built by a Dockerfile and served by Caddy with a fallback to `index.html` for client-side routes). Migrations run before each backend release with `npx prisma migrate deploy`.
+
+| Variable       | Service  | Purpose                                              |
+|----------------|----------|------------------------------------------------------|
+| `DATABASE_URL` | backend  | Reference to the database service's internal URL     |
+| `JWT_SECRET`   | backend  | Secret used to sign logins (separate from local)     |
+| `CORS_ORIGIN`  | backend  | The deployed frontend's origin                       |
+| `VITE_API_URL` | frontend | The backend's public URL ending in `/api`, read at build time |
 
 ## Game Types
 
