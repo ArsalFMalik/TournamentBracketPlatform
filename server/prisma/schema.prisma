@@ -39,6 +39,7 @@ model Tournament {
   status          String   @default("registration")
   maxParticipants Int
   createdAt       DateTime @default(now())
+  grandFinalReset Boolean  @default(true)
 
   scoringConfig   Json     @default("{\"setsToWin\": 1}")
 
@@ -99,6 +100,13 @@ model Match {
   isBye       Boolean  @default(false)
   isForfeit   Boolean  @default(false)
   scoreData   Json?
+  bracket     String   @default("winners")
+  nextSlot    Int?
+
+  loserNextMatchId     String?
+  loserNextMatch       Match?      @relation("MatchLoserProgression", fields: [loserNextMatchId], references: [id])
+  loserPreviousMatches Match[]     @relation("MatchLoserProgression")
+  loserNextSlot        Int?
 
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
